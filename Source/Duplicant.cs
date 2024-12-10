@@ -30,6 +30,9 @@ namespace Celeste.Mod.ILHookDebugger
     {
         static List<Info> AllDuplicant = new();
         static int unique = 0;
+        static MethodInfo monomodref = typeof(DynamicReferenceManager)
+            .GetMethod("GetValueTUnsafe", BindingFlags.Static | BindingFlags.NonPublic, null, [typeof(int), typeof(int)], null);
+
         public static void Create(MethodBase mi)
         {
             var context = new AssemblyLoadContext($"{nameof(ILHookDebugger)}_{unique++}", true);
