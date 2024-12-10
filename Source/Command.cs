@@ -32,8 +32,7 @@ namespace Celeste.Mod.ILHookDebugger
         }
         [Command("ILDebug_Refresh_All", """
             Refresh all debugging method.
-            Mainly for unload unused assembly,
-            and move after newly added hooks.
+            Mainly for unload unused assembly.
             """)]
         public static void RefreshAll()
         {
