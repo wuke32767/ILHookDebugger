@@ -18,7 +18,8 @@ using System.Threading.Tasks;
 
 namespace Celeste.Mod.ILHookDebugger
 {
-    record class Info(ILHook Detour, AssemblyLoadContext Context, string Before)
+
+    record class Info(ILHook Detour, AssemblyLoadContext Context)
     {
         public void Dispose()
         {
@@ -29,8 +30,8 @@ namespace Celeste.Mod.ILHookDebugger
     internal static class Duplicant
     {
         static List<Info> AllDuplicant = new();
-        static int unique = 0;
-        public static void Create(MethodBase mi, string? before)
+        static int unique;
+        public static void Create(MethodBase mi)
         {
             var context = new AssemblyLoadContext($"{nameof(ILHookDebugger)}_{unique++}", true);
             context.Resolving += (context, asm) =>
@@ -39,19 +40,11 @@ namespace Celeste.Mod.ILHookDebugger
                 return f;
 
             };
-            List<string> befores = ["*"];
-            if (!string.IsNullOrWhiteSpace(before))
-            {
-                befores.Add(before);
-            }
-            var detourconfig = new DetourConfig(nameof(ILHookDebugger), int.MinValue, befores);
-
-            using var scope = new DetourConfigContext(detourconfig).Use();
             var hook = new ILHook(mi, il =>
             {
                 ILCursor ic = new(il);
-                ic.EmitDelegate(Debugger.Break);
 
+                int unique = System.Threading.Interlocked.Increment(ref Duplicant.unique);
                 using MemoryStream output = new();
                 var md = il.Method;
                 var dmdtype = md.DeclaringType;
@@ -60,9 +53,19 @@ namespace Celeste.Mod.ILHookDebugger
                 var _iact = mdm.ImportReference(typeof(IgnoresAccessChecksToAttribute)).Resolve();
                 var iact = mdm.ImportReference(_iact.GetConstructors().First());
 
+                FieldDefinition shouldBreak = new("ShouldNotBreak", Mono.Cecil.FieldAttributes.Static, mdm.TypeSystem.Boolean);
+                dmdtype.Fields.Add(shouldBreak);
+
+                var breaking = il.DefineLabel();
+                ic.EmitLdsfld(shouldBreak);
+                ic.EmitBrtrue(breaking);
+                ic.EmitDelegate(Debugger.Break);
+                ic.MarkLabel(breaking);
+
                 md.Name = mi.Name;
                 dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType.Name}";
                 dmdtype.BaseType = mdm.TypeSystem.Object;
+                dmdtype.Namespace = mi.DeclaringType.Namespace;
                 mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}";
                 asm.Name.Name = $"{(nameof(ILHookDebugger))}#Asm#{unique}";
 
@@ -116,10 +119,9 @@ namespace Celeste.Mod.ILHookDebugger
                 }
                 ic.EmitCall(dup);
                 ic.EmitRet();
-                unique++;
             });
 
-            AllDuplicant.Add(new(hook, context, before));
+            AllDuplicant.Add(new(hook, context));
             //scope.Dispose();
         }
 
@@ -138,7 +140,7 @@ namespace Celeste.Mod.ILHookDebugger
             Clear();
             foreach (var item in orig)
             {
-                Create(item.Detour.Method, item.Before);
+                Create(item.Detour.Method);
             }
         }
 

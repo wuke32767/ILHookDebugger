@@ -14,9 +14,8 @@ namespace Celeste.Mod.ILHookDebugger
         [Command("ILDebug", """
             Add or refresh Debugger.Break() for a method.
             Only search for the Celeste/Monocle/Everest method by default.
-            Sometimes my hooks can't run after your hooks. write your hook id/mod names here.
             """)]
-        public static void InsertDebugger(string fullTypeName, string method, string before = null, bool modded = false)
+        public static void InsertDebugger(string fullTypeName, string method, bool modded = false)
         {
             Assembly asm;
             if (modded)
@@ -28,11 +27,12 @@ namespace Celeste.Mod.ILHookDebugger
                 asm = typeof(Engine).Assembly;
             }
             var tar = asm.GetType(fullTypeName).GetMethod(method, BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            InsertDebugger(tar, before);
+            InsertDebugger(tar);
         }
         [Command("ILDebug_Refresh_All", """
             Refresh all debugging method.
-            Mainly for unload unused assembly.
+            If someone added a new hook, run this command,
+            or their hook may not work.
             """)]
         public static void RefreshAll()
         {
@@ -53,9 +53,9 @@ namespace Celeste.Mod.ILHookDebugger
             Duplicant.Clear();
         }
 
-        public static void InsertDebugger(MethodInfo method, string? before)
+        public static void InsertDebugger(MethodInfo method)
         {
-            Duplicant.Create(method, before);
+            Duplicant.Create(method);
         }
     }
 }
