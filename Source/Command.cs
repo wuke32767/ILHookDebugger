@@ -26,8 +26,8 @@ namespace Celeste.Mod.ILHookDebugger
             {
                 asm = typeof(Engine).Assembly;
             }
-            var tar = asm.GetType(fullTypeName).GetMethod(method, BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            InsertDebugger(tar);
+            var tar = asm.GetType(fullTypeName)!.GetMethod(method, BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            InsertDebugger(tar!);
         }
         [Command("ILDebug_Refresh_All", """
             Refresh all debugging method.

@@ -4,39 +4,29 @@ namespace Celeste.Mod.ILHookDebugger;
 
 public class ILHookDebuggerModuleSettings : EverestModuleSettings
 {
-    [YamlIgnore]
-    private bool autoRefresh = false;
-    [YamlIgnore]
-    private bool hookMonoModInternal = false;
-    [YamlIgnore]
-    private bool unloadWhenDetached = false;
-
     [SettingIgnore]
     [SettingName("ILHookDebugger_Settings_AutoRefresh")]
-    [SettingSubHeader("ILHookDebugger_Settings_AutoRefresh_Help")]
+    [SettingSubText("ILHookDebugger_Settings_AutoRefresh_Help")]
     public bool AutoRefresh
     {
-        get => autoRefresh;
+        get => ILHookDebuggerModule.AutoRefresh;
         set
         {
             if (HookMonoModInternal)
             {
-                return;
+                value = false;
             }
-            autoRefresh = value;
-            ILHookDebuggerModule.Instance.AutoRefresh(value);
+            ILHookDebuggerModule.AutoRefresh.Value = value;
         }
     }
-    [SettingIgnore]
     [SettingName("ILHookDebugger_Settings_HookMonoModInternal")]
-    [SettingSubHeader("ILHookDebugger_Settings_HookMonoModInternal_Help")]
+    [SettingSubText("ILHookDebugger_Settings_HookMonoModInternal_Help")]
     public bool HookMonoModInternal
     {
-        get => hookMonoModInternal;
+        get => ILHookDebuggerModule.HookMonoModInternal;
         set
         {
-            hookMonoModInternal = value;
-            ILHookDebuggerModule.Instance.HookMonoModInternal(value);
+            ILHookDebuggerModule.HookMonoModInternal.Value = value;
             if (value)
             {
                 AutoRefresh = false;
@@ -44,14 +34,13 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
         }
     }
     [SettingName("ILHookDebugger_Settings_UnloadWhenDetached")]
-    [SettingSubHeader("ILHookDebugger_Settings_UnloadWhenDetached_Help")]
+    [SettingSubText("ILHookDebugger_Settings_UnloadWhenDetached_Help")]
     public bool UnloadWhenDetached
     {
-        get => unloadWhenDetached;
+        get => ILHookDebuggerModule.UnloadWhenDetached;
         set
         {
-            unloadWhenDetached = value;
-            ILHookDebuggerModule.Instance.UnloadWhenDetached(value);
+            ILHookDebuggerModule.UnloadWhenDetached.Value = value;
         }
     }
 }

@@ -29,8 +29,8 @@ namespace Celeste.Mod.ILHookDebugger
     }
     internal static class PrintingPod
     {
-        static List<Duplicant> AllDuplicants = [];
-        static Dictionary<MethodBase, Duplicant> DuplicantLookup = [];
+        public static List<Duplicant> AllDuplicants = [];
+        public static Dictionary<MethodBase, Duplicant> DuplicantLookup = [];
         static int unique;
         public static void Create(MethodBase mi)
         {
@@ -59,7 +59,7 @@ namespace Celeste.Mod.ILHookDebugger
                 var _iact = mdm.ImportReference(typeof(IgnoresAccessChecksToAttribute)).Resolve();
                 var iact = mdm.ImportReference(_iact.GetConstructors().First());
 
-                FieldDefinition shouldBreak = new("ShouldNotBreak", Mono.Cecil.FieldAttributes.Static, mdm.TypeSystem.Boolean);
+                FieldDefinition shouldBreak = new("ShouldNotBreak_YouCanChangeThisFromYourIDEDebugger", Mono.Cecil.FieldAttributes.Static, mdm.TypeSystem.Boolean);
                 dmdtype.Fields.Add(shouldBreak);
 
                 var breaking = il.DefineLabel();
@@ -69,7 +69,7 @@ namespace Celeste.Mod.ILHookDebugger
                 ic.MarkLabel(breaking);
 
                 md.Name = mi.Name;
-                dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType.Name}";
+                dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType!.Name}";
                 dmdtype.BaseType = mdm.TypeSystem.Object;
                 dmdtype.Namespace = mi.DeclaringType.Namespace;
                 mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}";
@@ -116,7 +116,7 @@ namespace Celeste.Mod.ILHookDebugger
                 var dup = context
                     .LoadFromStream(output)
                     .GetTypes().First(x => x.Name == dmdtype.Name)
-                    .GetMethod(md.Name);
+                    .GetMethod(md.Name)!;
 
                 ic.Index = 0;
                 for (var i = 0; i < md.Parameters.Count; i++)
@@ -125,7 +125,7 @@ namespace Celeste.Mod.ILHookDebugger
                 }
                 ic.EmitCall(dup);
                 ic.EmitRet();
-            });
+            },!ILHookDebuggerModule.HookMonoModInternal);
 
             var dup = new Duplicant(hook, context, mi);
             AllDuplicants.Add(dup);
