@@ -6,7 +6,9 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
 {
     [YamlIgnore]
     private bool autoRefresh = false;
+    [YamlIgnore]
     private bool hookMonoModInternal = false;
+    [YamlIgnore]
     private bool unloadWhenDetached = false;
 
     [SettingIgnore]
@@ -14,10 +16,10 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
     [SettingSubHeader("ILHookDebugger_Settings_AutoRefresh_Help")]
     public bool AutoRefresh
     {
-        get => autoRefresh; 
+        get => autoRefresh;
         set
         {
-            if(HookMonoModInternal)
+            if (HookMonoModInternal)
             {
                 return;
             }
@@ -27,23 +29,26 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
     }
     [SettingIgnore]
     [SettingName("ILHookDebugger_Settings_HookMonoModInternal")]
+    [SettingSubHeader("ILHookDebugger_Settings_HookMonoModInternal_Help")]
     public bool HookMonoModInternal
     {
-        get => hookMonoModInternal; 
+        get => hookMonoModInternal;
         set
         {
             hookMonoModInternal = value;
             ILHookDebuggerModule.Instance.HookMonoModInternal(value);
-            if(value)
+            if (value)
             {
                 AutoRefresh = false;
             }
         }
     }
     [SettingName("ILHookDebugger_Settings_UnloadWhenDetached")]
+    [SettingSubHeader("ILHookDebugger_Settings_UnloadWhenDetached_Help")]
     public bool UnloadWhenDetached
     {
-        get => unloadWhenDetached; set
+        get => unloadWhenDetached;
+        set
         {
             unloadWhenDetached = value;
             ILHookDebuggerModule.Instance.UnloadWhenDetached(value);

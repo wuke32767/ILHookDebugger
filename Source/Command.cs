@@ -12,7 +12,7 @@ namespace Celeste.Mod.ILHookDebugger
     public static class Commands
     {
         [Command("ILDebug", """
-            Add or refresh Debugger.Break() for a method.
+            Add or refresh debugger for a method.
             Only search for the Celeste/Monocle/Everest method by default.
             """)]
         public static void InsertDebugger(string fullTypeName, string method, bool modded = false)
@@ -36,26 +36,26 @@ namespace Celeste.Mod.ILHookDebugger
             """)]
         public static void RefreshAll()
         {
-            Duplicant.Refresh();
+            PrintingPod.Refresh();
         }
         [Command("ILDebug_Remove", """
             Remove the most newly added debugger.
             """)]
         public static void Remove()
         {
-            Duplicant.Remove();
+            PrintingPod.Remove();
         }
         [Command("ILDebug_Clear", """
             Remove all debuggers.
             """)]
         public static void RemoveAll()
         {
-            Duplicant.Clear();
+            PrintingPod.Clear();
         }
 
         public static void InsertDebugger(MethodInfo method)
         {
-            Duplicant.Create(method);
+            PrintingPod.Create(method);
         }
     }
 }

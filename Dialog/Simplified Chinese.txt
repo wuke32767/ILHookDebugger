@@ -1,0 +1,5 @@
+ILHookDebugger_Settings_AutoRefresh= 自动刷新
+ILHookDebugger_Settings_AutoRefresh_Help= 在以下情况自动刷新：
+ILHookDebugger_Settings_HookMonoModInternal= 0
+ILHookDebugger_Settings_UnloadWhenDetached= 停止调试时移除本Mod调试器
+ILHookDebugger_Settings_UnloadWhenDetached_Help= 将在停止调试（或者叫做分离调试器）时移除所有本Mod调试器

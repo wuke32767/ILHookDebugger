@@ -1,0 +1,5 @@
+ILHookDebugger_Settings_AutoRefresh= Auto Refresh
+ILHookDebugger_Settings_AutoRefresh_Help= 0
+ILHookDebugger_Settings_HookMonoModInternal= Hook MonoMod Internal
+ILHookDebugger_Settings_UnloadWhenDetached= Unload When Detached
+ILHookDebugger_Settings_UnloadWhenDetached_Help= Unload all my debuggers when you stop debugging (aka detach)

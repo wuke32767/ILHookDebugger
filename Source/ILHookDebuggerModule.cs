@@ -40,7 +40,7 @@ public class ILHookDebuggerModule : EverestModule
 
     public override void Unload()
     {
-        Duplicant.Clear();
+        PrintingPod.Clear();
         AutoRefresh(false);
         HookMonoModInternal(false);
         UnloadWhenDetached(false);
@@ -84,7 +84,7 @@ public class ILHookDebuggerModule : EverestModule
                 Logger.Error(nameof(ILHookDebugger), "Failed! Reset Settings.");
                 Settings.HookMonoModInternal = false;
                 throw new InvalidOperationException($"""
-                {nameof(ILHookDebugger)} was failed when hooking MonoMod internal. Related settings was reset.
+                {nameof(ILHookDebugger)} was failed when hooking MonoMod internal. Settings was reset.
                 """, e);
             }
         }
@@ -118,7 +118,7 @@ public class ILHookDebuggerModule : EverestModule
         {
             if (Settings?.UnloadWhenDetached ?? false)
             {
-                Duplicant.Clear();
+                PrintingPod.Clear();
             }
         }
         attached = Debugger.IsAttached;
