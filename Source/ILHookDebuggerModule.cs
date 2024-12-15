@@ -1,4 +1,5 @@
-﻿using MonoMod.Cil;
+﻿using FMOD;
+using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using MonoMod.Utils;
 using System;
@@ -38,9 +39,9 @@ public class ILHookDebuggerModule : EverestModule
     public override void Load()
     {
 
-        AutoRefresh.Value = Settings?.AutoRefresh ?? false;
-        HookMonoModInternal.Value = Settings?.HookMonoModInternal ?? false;
-        UnloadWhenDetached.Value = Settings?.UnloadWhenDetached ?? false;
+        //AutoRefresh.Value = Settings?.AutoRefresh ?? false;
+        //HookMonoModInternal.Value = Settings?.HookMonoModInternal ?? false;
+        //UnloadWhenDetached.Value = Settings?.UnloadWhenDetached ?? false;
 
         // TODO: apply any hooks that should always be active
     }
@@ -48,19 +49,20 @@ public class ILHookDebuggerModule : EverestModule
     public override void Unload()
     {
         PrintingPod.Clear();
-        AutoRefresh.Value = false;
-        HookMonoModInternal.Value = false;
-        UnloadWhenDetached.Value = false;
+        Retreat();
+        IgnoreDebugger();
+        MakeStatic();
         // TODO: unapply any hooks applied in Load()
     }
 
     public static Swapping AutoRefresh = new(() =>
     {
 
-    }, () =>
+    }, MakeStatic);
+    static void MakeStatic()
     {
 
-    });
+    }
     static ILHook? MonoModCriminal;
     public static Swapping HookMonoModInternal = new(() =>
     {
@@ -129,21 +131,24 @@ public class ILHookDebuggerModule : EverestModule
             {nameof(ILHookDebugger)} was failed when hooking MonoMod internal. Settings was reset.
             """, e);
         }
-    }, () =>
+    }, Retreat);
+    static bool Retreat()
     {
         MonoModCriminal?.Dispose();
         MonoModCriminal = null;
         PrintingPod.Clear();
         return false;
-    });
+
+    }
 
     public static Swapping UnloadWhenDetached = new(() =>
     {
         On.Monocle.Engine.Update += Engine_Update;
-    }, () =>
+    }, IgnoreDebugger);
+    static void IgnoreDebugger()
     {
         On.Monocle.Engine.Update -= Engine_Update;
-    });
+    }
 
     static Swapping DebuggerAttached = new(() =>
     {
