@@ -43,4 +43,25 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
             ILHookDebuggerModule.UnloadWhenDetached.Value = value;
         }
     }
+    public bool MappingUtilsIntegration
+    {
+        get => ILHookDebuggerModule.MappingUtilsIntegration;
+        set
+        {
+            ILHookDebuggerModule.MappingUtilsIntegration.Value = value;
+        }
+    }
+    public void CreateMappingUtilsIntegrationEntry(TextMenu menu, bool _)
+    {
+        if (ILHookDebuggerModule.CheckMappingUtils.Value)
+        {
+            var unit = new TextMenu.OnOff(Dialog.Get("ILHookDebugger_Settings_MappingUtilsIntegration"), MappingUtilsIntegration);
+            unit.OnValueChange += val =>
+            {
+                MappingUtilsIntegration = val;
+            };
+            menu.Add(unit);
+            unit.AddDescription(menu, Dialog.Get("ILHookDebugger_Settings_MappingUtilsIntegration_Help"));
+        }
+    }
 }

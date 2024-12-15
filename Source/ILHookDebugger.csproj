@@ -28,6 +28,16 @@
         <PackageReference Include="YamlDotNet" Version="16.2.1" />
         <Reference Include="$(CelestePrefix)\MMHOOK_Celeste.dll" Private="false" />
         <Reference Include="$(CelestePrefix)\FNA.dll" Private="false" />
+        <Reference Include="ImGuiHelper">
+          <HintPath>..\..\Cache\ImGuiHelper.ImGuiHelper.dll</HintPath>
+        </Reference>
+        <Reference Include="MappingUtils">
+          <HintPath>..\..\Cache\MappingUtils.MappingUtils.dll</HintPath>
+        </Reference>
+        <PackageReference Include="ImGui.NET" Version="1.91.0.1">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
     </ItemGroup>
 
     <Target Name="CopyFiles" AfterTargets="Build" Inputs="$(OutputPath)\$(AssemblyName).dll;$(OutputPath)\$(AssemblyName).pdb" Outputs="..\bin\$(AssemblyName).dll;..\bin\$(AssemblyName).pdb">

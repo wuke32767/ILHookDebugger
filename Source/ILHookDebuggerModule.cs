@@ -1,10 +1,12 @@
-﻿using FMOD;
+﻿using Celeste.Mod.ILHookDebugger.MappingUtils;
+using Celeste.Mod.MappingUtils.ImGuiHandlers;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using MonoMod.Utils;
 using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using YamlDotNet.Core.Tokens;
@@ -42,6 +44,7 @@ public class ILHookDebuggerModule : EverestModule
         //AutoRefresh.Value = Settings?.AutoRefresh ?? false;
         //HookMonoModInternal.Value = Settings?.HookMonoModInternal ?? false;
         //UnloadWhenDetached.Value = Settings?.UnloadWhenDetached ?? false;
+        //MappingUtilsIntegration.Value = Settings?.MappingUtilsIntegration ?? false;
 
         // TODO: apply any hooks that should always be active
     }
@@ -51,6 +54,7 @@ public class ILHookDebuggerModule : EverestModule
         PrintingPod.Clear();
         Retreat();
         IgnoreDebugger();
+        UnIntegrate();
         MakeStatic();
         // TODO: unapply any hooks applied in Load()
     }
@@ -149,7 +153,47 @@ public class ILHookDebuggerModule : EverestModule
     {
         On.Monocle.Engine.Update -= Engine_Update;
     }
+    internal static Lazy<bool> CheckMappingUtils = new(() =>
+    {
+        if (Instance!.Metadata.OptionalDependencies.Any(i => i.Name == "MappingUtils"))
+        {
+            if (Everest.Loader.TryGetDependency(new() { Name = "MappingUtils", Version = new(1, 0, 0) }, out var result))
+            {
+                // <=
+                if (Everest.Loader.VersionSatisfiesDependency(result.Metadata.Version, new Version(1, 8, 1)))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    });
+    // mappingutils can be not loaded
+    static object? toremove;
+    public static Swapping MappingUtilsIntegration = new(() =>
+    {
+        if (CheckMappingUtils.Value)
+        {
+            extract();
+            static void extract()
+            {
+                MainMappingUtils.Tabs.Add((Tab)(toremove = new FrostyPrintingPod()));
+            }
+        }
 
+    }, UnIntegrate);
+    static void UnIntegrate()
+    {
+        if (toremove is not null)
+        {
+            extract();
+            static void extract()
+            {
+                MainMappingUtils.Tabs.Remove((Tab)toremove!);
+            }
+        }
+        toremove = null;
+    }
     static Swapping DebuggerAttached = new(() =>
     {
     }, () =>
