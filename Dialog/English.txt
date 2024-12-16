@@ -1,5 +1,5 @@
 ILHookDebugger_Settings_AutoRefresh= Auto Refresh
-ILHookDebugger_Settings_AutoRefresh_Help= 0
+ILHookDebugger_Settings_AutoRefresh_Help= not implemented
 ILHookDebugger_Settings_HookMonoModInternal= Hook MonoMod Internal
 ILHookDebugger_Settings_HookMonoModInternal_Help= 
 Add hooks to MonoMod in order to auto refresh. 
@@ -7,3 +7,14 @@ Auto Revert when hook crashed. (hope so.)
 Will remove all debuggers when switching.
 ILHookDebugger_Settings_UnloadWhenDetached= Unload When Detached
 ILHookDebugger_Settings_UnloadWhenDetached_Help= Unload all my debuggers when you stop debugging (aka detach)
+
+ILHookDebugger_Help_RefreshIsAllYouNeed=
+If a new hook was added to debugging method, you need to refresh.
+or they will not be added.
+
+ILHookDebugger_Settings_MappingUtilsIntegration= Mapping Utils Integration
+ILHookDebugger_Settings_MappingUtilsIntegration_Help=
+You will be able to use this mod in Mapping Utils.
+Require MappingUtils 0.2.0 ~ 0.8.1, or this option will not work.
+
+

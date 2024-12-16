@@ -55,13 +55,13 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
     {
         if (ILHookDebuggerModule.CheckMappingUtils.Value)
         {
-            var unit = new TextMenu.OnOff(Dialog.Get("ILHookDebugger_Settings_MappingUtilsIntegration"), MappingUtilsIntegration);
+            var unit = new TextMenu.OnOff(Dialog.Clean("ILHookDebugger_Settings_MappingUtilsIntegration"), MappingUtilsIntegration);
             unit.OnValueChange += val =>
             {
                 MappingUtilsIntegration = val;
             };
             menu.Add(unit);
-            unit.AddDescription(menu, Dialog.Get("ILHookDebugger_Settings_MappingUtilsIntegration_Help"));
+            unit.AddDescription(menu, Dialog.Clean("ILHookDebugger_Settings_MappingUtilsIntegration_Help"));
         }
     }
 }

@@ -1,9 +1,13 @@
 ILHookDebugger_Settings_AutoRefresh= 自动刷新
-ILHookDebugger_Settings_AutoRefresh_Help= 在以下情况自动刷新：
-ILHookDebugger_Settings_HookMonoModInternal= 进攻MonoMod内部
+ILHookDebugger_Settings_AutoRefresh_Help= (未完成)
+ILHookDebugger_Settings_HookMonoModInternal= 打入MonoMod内部
 ILHookDebugger_Settings_HookMonoModInternal_Help= 
 向MonoMod内部添加钩子以实现自动刷新。
 钩子崩溃时该选项会自动关闭。(希望吧。)
-切换时将移除所有本mod调试器。
+修改该选项时将移除所有本mod调试器。
 ILHookDebugger_Settings_UnloadWhenDetached= 停止调试时移除本Mod调试器
 ILHookDebugger_Settings_UnloadWhenDetached_Help= 将在停止调试（或者叫做分离/拆离调试器）时移除所有本Mod调试器
+ILHookDebugger_Settings_MappingUtilsIntegration= 集成进MappingUtils
+ILHookDebugger_Settings_MappingUtilsIntegration_Help=
+你将可以在Mapping Utils中使用本mod的全部功能。
+依赖于0.2.0 ~ 0.8.1，如果版本不符合将不会生效。
