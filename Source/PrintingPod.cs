@@ -19,12 +19,13 @@ using System.Threading.Tasks;
 namespace Celeste.Mod.ILHookDebugger
 {
 
-    record class Duplicant(ILHook Detour, AssemblyLoadContext Context, MethodBase Target) : IDisposable
+    record class Duplicant(ILHook Detour, AssemblyLoadContext Context, MethodBase Target, ILHook? Dummy) : IDisposable
     {
         public void Dispose()
         {
             Detour?.Dispose();
             Context?.Unload();
+            Dummy?.Dispose();
         }
     }
     internal static class PrintingPod
@@ -34,7 +35,7 @@ namespace Celeste.Mod.ILHookDebugger
         static int unique;
         public static void Create(MethodBase mi)
         {
-            if (DuplicantLookup.TryGetValue(mi,out var exist))
+            if (DuplicantLookup.TryGetValue(mi, out var exist))
             {
                 Remove(exist);
             }
@@ -125,28 +126,34 @@ namespace Celeste.Mod.ILHookDebugger
                 }
                 ic.EmitCall(dup);
                 ic.EmitRet();
-            },!ILHookDebuggerModule.HookMonoModInternal);
-
-            var dup = new Duplicant(hook, context, mi);
+            }, !ILHookDebuggerModule.HookMonoModInternal);
+            ILHook? _dummy = null;
+            if (ILHookDebuggerModule.HookMonoModInternal)
+            {
+                _dummy = new ILHook(mi, i => { }, false);
+            }
+            var dup = new Duplicant(hook, context, mi, _dummy);
             AllDuplicants.Add(dup);
             DuplicantLookup.Add(mi, AllDuplicants[^1]);
+            _dummy?.Apply();
             //scope.Dispose();
         }
 
-        internal static void Clear()
+        internal static List<Duplicant> Clear()
         {
-            foreach (var item in AllDuplicants)
+            var orig = AllDuplicants.ToList();
+            AllDuplicants.Clear();
+            DuplicantLookup.Clear();
+            foreach (var item in orig)
             {
                 item.Dispose();
             }
-            AllDuplicants.Clear();
-            DuplicantLookup.Clear();
+            return orig;
         }
 
         internal static void Refresh()
         {
-            var orig = AllDuplicants.ToList();
-            Clear();
+            var orig = Clear();
             foreach (var item in orig)
             {
                 Create(item.Detour.Method);
@@ -157,22 +164,24 @@ namespace Celeste.Mod.ILHookDebugger
         {
             if (AllDuplicants.Count > 0)
             {
-                AllDuplicants[^1].Dispose();
+                var orig = AllDuplicants[^1];
+                DuplicantLookup.Remove(orig.Target);
+                AllDuplicants.RemoveAt(AllDuplicants.Count - 1);
+                orig.Dispose();
             }
-            DuplicantLookup.Remove(AllDuplicants[^1].Target);
-            AllDuplicants.RemoveAt(AllDuplicants.Count - 1);
         }
         internal static void Remove(Duplicant dup)
         {
-            dup.Dispose();
             DuplicantLookup.Remove(dup.Target);
             AllDuplicants.Remove(dup);
+            dup.Dispose();
         }
         internal static void RemoveAt(int at)
         {
-            AllDuplicants[at].Dispose();
-            DuplicantLookup.Remove(AllDuplicants[at].Target);
+            var orig = AllDuplicants[at];
+            DuplicantLookup.Remove(orig.Target);
             AllDuplicants.RemoveAt(at);
+            orig.Dispose();
         }
     }
 }
