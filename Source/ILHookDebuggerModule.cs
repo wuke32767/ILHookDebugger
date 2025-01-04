@@ -1,5 +1,6 @@
 ﻿using Celeste.Mod.ILHookDebugger.MappingUtils;
 using Celeste.Mod.MappingUtils.ImGuiHandlers;
+using Monocle;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using MonoMod.Utils;
@@ -40,7 +41,7 @@ public class ILHookDebuggerModule : EverestModule
 
     public override void Load()
     {
-
+        OnMonoMod();
         //AutoRefresh.Value = Settings?.AutoRefresh ?? false;
         //HookMonoModInternal.Value = Settings?.HookMonoModInternal ?? false;
         //UnloadWhenDetached.Value = Settings?.UnloadWhenDetached ?? false;
@@ -52,98 +53,31 @@ public class ILHookDebuggerModule : EverestModule
     public override void Unload()
     {
         PrintingPod.Clear();
-        Retreat();
         IgnoreDebugger();
         UnIntegrate();
-        MakeStatic();
         // TODO: unapply any hooks applied in Load()
     }
 
-    public static Swapping AutoRefresh = new(() =>
-    {
-
-    }, MakeStatic);
-    static void MakeStatic()
-    {
-
-    }
     static ILHook? MonoModCriminal;
-    public static Swapping HookMonoModInternal = new(() =>
+
+    public static void OnMonoMod()
     {
-        PrintingPod.Clear();
-
-        Logger.Error(nameof(ILHookDebugger), "Hooking MonoMod Internal as requested.");
-        try
+        DetourManager.ILHookApplied += info =>
         {
-            var bf = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance;
-            var mds = typeof(DetourManager).GetNestedType("ManagedDetourState", bf)!;
-            var def = mds.GetField("Source", bf)!;
-            var t = mds.GetMethod("UpdateEndOfChain", bf);
-            if (def is null)
+            if (info.ManipulatorMethod.Module != typeof(ILHookDebuggerModule).Module
+                && PrintingPod.DuplicantLookup.ContainsKey(info.Method.Method))
             {
-                throw new NullReferenceException();
-            }
-            DynamicMethod sourcehelper = new("noname", typeof(MethodBase), [typeof(object)]);
-            var il = sourcehelper.GetILGenerator();
-            il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Castclass, mds);
-            il.Emit(OpCodes.Ldfld, def);
-            il.Emit(OpCodes.Ret);
-            var defget = sourcehelper.CreateDelegate<Func<object, MethodBase>>();
-
-            MonoModCriminal = new(t!, il =>
-            {
-                ILCursor ic = new(il);
-                ic.GotoNext(MoveType.Before, i => i.MatchCallOrCallvirt<DynamicMethodDefinition>("Generate"));
-                ic.EmitDup();
-                ic.EmitLdarg0();
-                void MyHook(DynamicMethodDefinition dmd, object MissingType)
+                if (Engine.Scene is not null)
                 {
-                    try
-                    {
-                        if (defget(MissingType) is MethodBase Source && PrintingPod.DuplicantLookup.TryGetValue(Source, out var dup))
-                        {
-                            new ILContext(dmd.Definition).Invoke(dup.Detour.Manipulator);
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        ExceptionHandler(e);
-                    }
+                    Engine.Scene.OnEndOfFrame += () =>
+                {
+                    PrintingPod.Refresh(info.Method.Method);
+                };
                 }
-#pragma warning disable CL0002
-                ic.EmitDelegate(MyHook);
-#pragma warning restore CL0002
-            });
-        }
-        catch (Exception e)
-        {
-            ExceptionHandler(e);
-            return false;
-        }
-        return true;
-
-        [DoesNotReturn]
-        static void ExceptionHandler(Exception e)
-        {
-            MonoModCriminal?.Dispose();
-            MonoModCriminal = null;
-            Logger.Error(nameof(ILHookDebugger), "Failed! Reset Settings.");
-            Settings.HookMonoModInternal = false;
-            Instance?.SaveSettings();
-            throw new InvalidOperationException($"""
-            {nameof(ILHookDebugger)} was failed when hooking MonoMod internal. Settings was reset.
-            """, e);
-        }
-    }, Retreat);
-    static bool Retreat()
-    {
-        MonoModCriminal?.Dispose();
-        MonoModCriminal = null;
-        PrintingPod.Clear();
-        return false;
-
+            }
+        };
     }
+
 
     public static Swapping UnloadWhenDetached = new(() =>
     {
@@ -160,7 +94,7 @@ public class ILHookDebuggerModule : EverestModule
             if (Everest.Loader.TryGetDependency(new() { Name = "MappingUtils", Version = new(1, 0, 0) }, out var result))
             {
                 // <=
-                if (Everest.Loader.VersionSatisfiesDependency(result.Metadata.Version, new Version(1, 8, 1)))
+                if (Everest.Loader.VersionSatisfiesDependency(result.Metadata.Version, new Version(1, 9, 0)))
                 {
                     return true;
                 }
@@ -203,6 +137,8 @@ public class ILHookDebuggerModule : EverestModule
             PrintingPod.Clear();
         }
     });
+
+    public static Swapping BreakOnce = new(i => i, i => PrintingPod.Refresh());
 
     private static void Engine_Update(On.Monocle.Engine.orig_Update orig, Monocle.Engine self, Microsoft.Xna.Framework.GameTime gameTime)
     {

@@ -29,27 +29,10 @@ namespace Celeste.Mod.ILHookDebugger
             var tar = asm.GetType(fullTypeName)!.GetMethod(method, BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             InsertDebugger(tar!);
             Engine.Commands.Log($"Info: Successfully add debugger for the method.");
-            if(ILHookDebuggerModule.HookMonoModInternal)
-            {
-                Engine.Commands.Log($"Info: Running in MonoMod Hook mode.");
-            }
-            else if(ILHookDebuggerModule.AutoRefresh)
-            {
-                Engine.Commands.Log($"Info: Running in Auto Refresh mode.");
-            }
-            else
-            {
-                Engine.Commands.Log($"""
-                Info: You should refresh this debugger manually
-                      when a new hook (may not yours) was added,
-                      or they can not work.
-                """);
-            }
         }
         [Command("ILDebug_Refresh_All", """
             Refresh all debugging method.
-            If someone added a new hook, run this command,
-            or their hook may not work.
+            Mostly do nothing.
             """)]
         public static void RefreshAll()
         {

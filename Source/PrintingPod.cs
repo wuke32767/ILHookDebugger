@@ -1,5 +1,4 @@
-﻿using AsmResolver.PE.DotNet.Metadata.Tables.Rows;
-using Celeste.Mod.Helpers.LegacyMonoMod;
+﻿using Celeste.Mod.Helpers.LegacyMonoMod;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
 using MonoMod.Cil;
@@ -19,13 +18,12 @@ using System.Threading.Tasks;
 namespace Celeste.Mod.ILHookDebugger
 {
 
-    record class Duplicant(ILHook Detour, AssemblyLoadContext Context, MethodBase Target, ILHook? Dummy) : IDisposable
+    record class Duplicant(ILHook Detour, AssemblyLoadContext Context, MethodBase Target) : IDisposable
     {
         public void Dispose()
         {
             Detour?.Dispose();
             Context?.Unload();
-            Dummy?.Dispose();
         }
     }
     internal static class PrintingPod
@@ -66,6 +64,12 @@ namespace Celeste.Mod.ILHookDebugger
                 var breaking = il.DefineLabel();
                 ic.EmitLdsfld(shouldBreak);
                 ic.EmitBrtrue(breaking);
+                if (ILHookDebuggerModule.BreakOnce)
+                {
+                    ic.EmitLdcI4(1);
+                    ic.EmitStsfld(shouldBreak);
+                    shouldBreak.Name = "ShouldNotBreak";
+                }
                 ic.EmitDelegate(Debugger.Break);
                 ic.MarkLabel(breaking);
 
@@ -126,16 +130,10 @@ namespace Celeste.Mod.ILHookDebugger
                 }
                 ic.EmitCall(dup);
                 ic.EmitRet();
-            }, !ILHookDebuggerModule.HookMonoModInternal);
-            ILHook? _dummy = null;
-            if (ILHookDebuggerModule.HookMonoModInternal)
-            {
-                _dummy = new ILHook(mi, i => { }, false);
-            }
-            var dup = new Duplicant(hook, context, mi, _dummy);
+            });
+            var dup = new Duplicant(hook, context, mi);
             AllDuplicants.Add(dup);
             DuplicantLookup.Add(mi, AllDuplicants[^1]);
-            _dummy?.Apply();
             //scope.Dispose();
         }
 
@@ -153,10 +151,24 @@ namespace Celeste.Mod.ILHookDebugger
 
         internal static void Refresh()
         {
-            var orig = Clear();
-            foreach (var item in orig)
+            foreach (var item in AllDuplicants.Select(x => x.Detour))
             {
-                Create(item.Detour.Method);
+                item.Undo();
+                item.Apply();
+            }
+        }
+
+        internal static void Refresh(Duplicant at)
+        {
+            var item = at.Detour;
+            item.Undo();
+            item.Apply();
+        }
+        internal static void Refresh(MethodBase at)
+        {
+            if (DuplicantLookup.TryGetValue(at, out var i))
+            {
+                Refresh(i);
             }
         }
 

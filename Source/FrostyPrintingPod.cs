@@ -8,6 +8,7 @@ using System.Linq;
 using Celeste.Mod.MappingUtils.Commands;
 using MonoMod.RuntimeDetour;
 using Celeste.Mod.MappingUtils;
+using System.Collections;
 namespace Celeste.Mod.ILHookDebugger.MappingUtils
 {
     public class FrostyPrintingPod : Tab
@@ -20,14 +21,31 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
         public override bool CanBeVisible() => true;
 
         readonly List<Duplicant> toremove = [];
+
+        private static readonly FieldInfo DetourManager_detourStates =
+            typeof(DetourManager).GetField("detourStates", BindingFlags.Static | BindingFlags.NonPublic)!;
+        public static IEnumerable<MethodBase> GetEverHookedMethods()
+        {
+            var detourStates = (IDictionary)DetourManager_detourStates.GetValue(null)!;
+            return detourStates.Keys.OfType<MethodBase>()/*.Where(x =>
+            {
+                var info = DetourManager.GetDetourInfo(x);
+                return info.Detours.Any() || info.ILHooks.Any();
+            })*/;
+        }
+
         public override void Render(Level? level)
         {
-            bool cur = ILHookDebuggerModule.HookMonoModInternal;
-            if (ImGui.Checkbox("Hook MonoMod Internal", ref cur))
+            if (!Dialog.Languages.TryGetValue("english", out var lang))
             {
-                ILHookDebuggerModule.HookMonoModInternal.Value = cur;
+                ImGui.Text("Waiting for Everest loading");
             }
-            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_HookMonoModInternal_Help", Dialog.Languages["english"]));
+            bool cur = ILHookDebuggerModule.BreakOnce;
+            if (ImGui.Checkbox("Break Once", ref cur))
+            {
+                ILHookDebuggerModule.BreakOnce.Value = cur;
+            }
+            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_BreakOnce_Help", lang));
             ImGui.SameLine();
 
             cur = ILHookDebuggerModule.UnloadWhenDetached;
@@ -35,7 +53,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             {
                 ILHookDebuggerModule.UnloadWhenDetached.Value = cur;
             }
-            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_UnloadWhenDetached_Help", Dialog.Languages["english"]));
+            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_UnloadWhenDetached_Help", lang));
             //ImGui.SameLine();
 
             if (ImGui.Button("Refresh"))
@@ -44,7 +62,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             }
             ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_RefreshIsAllYouNeed", Dialog.Languages["english"]));
 
-            var hooks = HookDiscovery.GetHookedMethods().ToList();
+            var hooks = GetEverHookedMethods().ToList();
             if (ImGuiExt.Combo("Method", ref _selectedMethod!, hooks, m => m?.GetMethodNameForDB() ?? "", _comboCache, tooltip: null,
                     ImGuiComboFlags.None))
             {

@@ -20,12 +20,12 @@ namespace Celeste.Mod.ILHookDebugger
                 return val;
             };
     }
-    public struct OnChanged<T>(Func<T?, T?> OnChange, T? init = default) where T : IEquatable<T>
+    public struct OnChanged<T>(Func<T?, T?> OnChange, Action<T?>? Changed = null, T? init = default) where T : IEquatable<T>
     {
 
         private T? val = init;
 
-        public OnChanged(Action<T?> OnChange, T? init = default) : this(_Wrapper.Tap(OnChange), init)
+        public OnChanged(Action<T?> OnChange, Action<T?>? Changed = null, T? init = default) : this(_Wrapper.Tap(OnChange), Changed, init)
         {
         }
 
@@ -37,10 +37,7 @@ namespace Celeste.Mod.ILHookDebugger
                 if ((val is null && value is not null) || (val is not null && !val.Equals(value)))
                 {
                     val = OnChange(value);
-                }
-                else
-                {
-                    val = value;
+                    Changed?.Invoke(val);
                 }
             }
         }
@@ -53,27 +50,27 @@ namespace Celeste.Mod.ILHookDebugger
         public static implicit operator bool(Swapping d) => d.Value;
         public bool Value { readonly get => Base; set => Base.Value = value; }
 
-        public Swapping(Func<bool, bool> OnChange, bool init = false)
+        public Swapping(Func<bool, bool> OnChange, Action<bool>? Changed = null, bool init = false)
         {
-            Base = new(OnChange, init);
+            Base = new(OnChange, Changed, init);
         }
 
-        public Swapping(Action<bool> OnChange, bool init = false)
+        public Swapping(Action<bool> OnChange, Action<bool>? Changed = null, bool init = false)
         {
-            Base = new(OnChange, init);
+            Base = new(OnChange, Changed, init);
         }
 
-        public Swapping(Func<bool> ToTrue, Func<bool> ToFalse, bool init = false)
+        public Swapping(Func<bool> ToTrue, Func<bool> ToFalse, Action<bool>? Changed = null, bool init = false)
         {
             Base = new(o => o switch
             {
                 true => ToTrue(),
                 false => ToFalse(),
-            }, init);
+            }, Changed, init);
         }
 
-        public Swapping(Action ToTrue, Action ToFalse, bool init = false)
-            : this(_Wrapper.With(ToTrue, true), _Wrapper.With(ToFalse, false), init)
+        public Swapping(Action ToTrue, Action ToFalse, Action<bool>? Changed = null, bool init = false)
+            : this(_Wrapper.With(ToTrue, true), _Wrapper.With(ToFalse, false), Changed, init)
         {
         }
     }

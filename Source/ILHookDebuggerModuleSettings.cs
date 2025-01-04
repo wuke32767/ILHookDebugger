@@ -4,35 +4,17 @@ namespace Celeste.Mod.ILHookDebugger;
 
 public class ILHookDebuggerModuleSettings : EverestModuleSettings
 {
-    [SettingIgnore]
-    [SettingName("ILHookDebugger_Settings_AutoRefresh")]
-    [SettingSubText("ILHookDebugger_Settings_AutoRefresh_Help")]
-    public bool AutoRefresh
+    [SettingName("ILHookDebugger_Settings_BreakOnce")]
+    [SettingSubText("ILHookDebugger_Settings_BreakOnce_Help")]
+    public bool BreakOnce
     {
-        get => ILHookDebuggerModule.AutoRefresh;
+        get => ILHookDebuggerModule.BreakOnce;
         set
         {
-            if (HookMonoModInternal)
-            {
-                value = false;
-            }
-            ILHookDebuggerModule.AutoRefresh.Value = value;
+            ILHookDebuggerModule.BreakOnce.Value = value;
         }
     }
-    [SettingName("ILHookDebugger_Settings_HookMonoModInternal")]
-    [SettingSubText("ILHookDebugger_Settings_HookMonoModInternal_Help")]
-    public bool HookMonoModInternal
-    {
-        get => ILHookDebuggerModule.HookMonoModInternal;
-        set
-        {
-            ILHookDebuggerModule.HookMonoModInternal.Value = value;
-            if (value)
-            {
-                AutoRefresh = false;
-            }
-        }
-    }
+
     [SettingName("ILHookDebugger_Settings_UnloadWhenDetached")]
     [SettingSubText("ILHookDebugger_Settings_UnloadWhenDetached_Help")]
     public bool UnloadWhenDetached
