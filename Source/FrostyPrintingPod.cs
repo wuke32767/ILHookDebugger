@@ -39,6 +39,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             if (!Dialog.Languages.TryGetValue("english", out var lang))
             {
                 ImGui.Text("Waiting for Everest loading");
+                return;
             }
             bool cur = ILHookDebuggerModule.BreakOnce;
             if (ImGui.Checkbox("Break Once", ref cur))
