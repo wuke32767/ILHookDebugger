@@ -10,3 +10,9 @@ Debugger.Break 将仅触发一次。
 由于本 mod 的工作原理，每次有新的钩子加入时，
 都需要重建程序集，旧的程序集将失效，
 以及新程序集将会再次触发 Debugger.Break。
+ILHookDebugger_Settings_PrettifyMonoMod=美化 MonoMod 生成
+ILHookDebugger_Settings_PrettifyMonoMod_Help=
+MonoMod 在 EmitDelegate 中使用了一些黑科技以正确支持委托，
+但是会在反编译中产生一些垃圾代码。
+这个选项将把垃圾代码移走，并留下一个比较可读的名字。
+

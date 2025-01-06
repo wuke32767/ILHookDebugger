@@ -4,6 +4,17 @@ namespace Celeste.Mod.ILHookDebugger;
 
 public class ILHookDebuggerModuleSettings : EverestModuleSettings
 {
+    [SettingName("ILHookDebugger_Settings_PrettifyMonoMod")]
+    [SettingSubText("ILHookDebugger_Settings_PrettifyMonoMod_Help")]
+    public bool PrettifyMonoMod
+    {
+        get => ILHookDebuggerModule.PrettifyMonoMod;
+        set
+        {
+            ILHookDebuggerModule.PrettifyMonoMod.Value = value;
+        }
+    }
+
     [SettingName("ILHookDebugger_Settings_BreakOnce")]
     [SettingSubText("ILHookDebugger_Settings_BreakOnce_Help")]
     public bool BreakOnce

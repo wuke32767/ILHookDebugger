@@ -18,3 +18,9 @@ But If a new hook was added to debugging method,
 I need to generate a new assembly,
 and causes another Break.
 
+ILHookDebugger_Settings_PrettifyMonoMod=Prettify MonoMod
+ILHookDebugger_Settings_PrettifyMonoMod_Help=
+EmitDelegate supports delegates by throwing garbage at your decompiler.
+this option can clean them up.
+
+

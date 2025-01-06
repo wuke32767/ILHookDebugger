@@ -52,6 +52,7 @@ namespace Celeste.Mod.ILHookDebugger
                 int unique = System.Threading.Interlocked.Increment(ref PrintingPod.unique);
                 using MemoryStream output = new();
                 var md = il.Method;
+                var backup = il.Instrs.ToArray();
                 var dmdtype = md.DeclaringType;
                 var mdm = md.Module;
                 var asm = mdm.Assembly;
@@ -79,6 +80,8 @@ namespace Celeste.Mod.ILHookDebugger
                 dmdtype.Namespace = mi.DeclaringType.Namespace;
                 mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}";
                 asm.Name.Name = $"{(nameof(ILHookDebugger))}#Asm#{unique}";
+
+                il.Prettify();
 
                 var hooked = DetourManager.GetDetourInfo(mi).ILHooks;
                 HashSet<string> checks = [];
@@ -123,6 +126,8 @@ namespace Celeste.Mod.ILHookDebugger
                     .GetTypes().First(x => x.Name == dmdtype.Name)
                     .GetMethod(md.Name)!;
 
+                il.Instrs.Clear();
+                il.Instrs.AddRange(backup);
                 ic.Index = 0;
                 for (var i = 0; i < md.Parameters.Count; i++)
                 {

@@ -49,6 +49,14 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_BreakOnce_Help", lang));
             ImGui.SameLine();
 
+            cur = ILHookDebuggerModule.PrettifyMonoMod;
+            if (ImGui.Checkbox("Prettify MonoMod", ref cur))
+            {
+                ILHookDebuggerModule.PrettifyMonoMod.Value = cur;
+            }
+            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_PrettifyMonoMod_Help", lang));
+            ImGui.SameLine();
+
             cur = ILHookDebuggerModule.UnloadWhenDetached;
             if (ImGui.Checkbox("Unload When Detached", ref cur))
             {
