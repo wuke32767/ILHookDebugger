@@ -3,6 +3,7 @@
 namespace Celeste.Mod.ILHookDebugger
 {
     using Mono.Cecil;
+    using Mono.Cecil.Cil;
     using MonoMod.Cil;
     using MonoMod.Utils;
     using System;
@@ -21,8 +22,6 @@ namespace Celeste.Mod.ILHookDebugger
         public const string MMPrefix = "#ILHDFix#";
         public static void Steal(this ILContext il)
         {
-#pragma warning disable CS0162 // how to duplicate a dynamic method
-            return;
             Dictionary<DynamicMethod, MethodReference> compiled = [];
             uint i = 0;
             ILCursor ic = new(il);
@@ -31,6 +30,30 @@ namespace Celeste.Mod.ILHookDebugger
                /* && mr.Module is null*/)
                 && mr.ResolveReflection() is DynamicMethod dm)
             {
+                i++;
+                if (dm.Name.StartsWith("MMIL:Invoke<") && dm.Name.EndsWith(">"))
+                {
+                    var sig = MethodSignature.ForMethod(dm);
+                    var def = new MethodDefinition(MMPrefix + i + "#" + dm.Name,
+                        Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Static,
+                        il.Import(sig.ReturnType));
+                    il.Method.DeclaringType.Methods.Add(def);
+                    def.Parameters.AddRange(sig.Parameters.Select(x => new ParameterDefinition(il.Import(x))));
+                    ILCursor ix = new(new ILContext(def));
+
+                    ix.EmitLdarg(def.Parameters.Count - 1);
+                    for (int j = 0; j < def.Parameters.Count - 1; j++)
+                    {
+                        ix.EmitLdarg(j);
+                    }
+                    ix.EmitCallvirt(il.Import(sig.Parameters.Last().GetMethod("Invoke")));
+                    ix.EmitRet();
+                    var rmp = ic.Next;
+                    ic.Remove();
+                    ic.Emit(rmp.OpCode, def);
+                }
+                continue;
+#pragma warning disable CS0162 // how to duplicate a dynamic method
                 if (compiled.TryGetValue(dm, out var mi))
                 {
                     //ic.Next.Operand = mi;
