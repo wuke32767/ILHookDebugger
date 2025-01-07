@@ -4,6 +4,9 @@ namespace Celeste.Mod.ILHookDebugger;
 
 public class ILHookDebuggerModuleSettings : EverestModuleSettings
 {
+    [DefaultButtonBinding(0, 0)]
+    public ButtonBinding PanelKey { get; set; } = null!;
+
     [SettingName("ILHookDebugger_Settings_PrettifyMonoMod")]
     [SettingSubText("ILHookDebugger_Settings_PrettifyMonoMod_Help")]
     public bool PrettifyMonoMod

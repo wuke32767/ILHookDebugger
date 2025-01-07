@@ -10,7 +10,10 @@ ILHookDebugger_Settings_MappingUtilsIntegration= Mapping Utils Integration
 ILHookDebugger_Settings_MappingUtilsIntegration_Help=
 You will be able to use this mod in Mapping Utils.
 Require MappingUtils 0.2.0 ~ 0.9.0, or this option will not work.
+Suitable for those who want to press one key to open two windows.
 
+You can still use them without Mapping Utils.
+Bind a key to open the panel.
 ILHookDebugger_Settings_BreakOnce=Break Once
 ILHookDebugger_Settings_BreakOnce_Help=
 Debugger.Break will only be called for once.

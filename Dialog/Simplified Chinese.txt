@@ -1,9 +1,13 @@
-ILHookDebugger_Settings_UnloadWhenDetached= 停止调试时移除本Mod调试器
-ILHookDebugger_Settings_UnloadWhenDetached_Help= 将在停止调试（或者叫做分离/拆离调试器）时移除所有本Mod调试器
-ILHookDebugger_Settings_MappingUtilsIntegration= 集成进MappingUtils
+ILHookDebugger_Settings_UnloadWhenDetached= 停止调试时移除本 Mod 调试器
+ILHookDebugger_Settings_UnloadWhenDetached_Help= 将在停止调试（或者叫做分离/拆离调试器）时移除所有本 Mod 调试器
+ILHookDebugger_Settings_MappingUtilsIntegration= 集成进 MappingUtils
 ILHookDebugger_Settings_MappingUtilsIntegration_Help=
-你将可以在Mapping Utils中使用本mod的全部功能。
-依赖于0.2.0 ~ 0.9.0，如果版本不符合将不会生效。
+你将可以在 Mapping Utils 中使用本 mod 的 UI 。
+依赖于 0.2.0 ~ 0.9.0，如果版本不符合将不会生效。
+适合那些想一键展开工作区的人。
+
+没有 Mapping Utils 的仍可以绑一个按键打开 UI 。
+虽然不装 MU 就看不到这个提示。
 ILHookDebugger_Settings_BreakOnce=只暂停一次
 ILHookDebugger_Settings_BreakOnce_Help=
 Debugger.Break 将仅触发一次。

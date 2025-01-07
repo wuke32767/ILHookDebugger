@@ -1,4 +1,5 @@
 ﻿using Celeste.Mod.ILHookDebugger.MappingUtils;
+using Celeste.Mod.ImGuiHelper;
 using Celeste.Mod.MappingUtils.ImGuiHandlers;
 using Monocle;
 using MonoMod.Cil;
@@ -38,9 +39,12 @@ public class ILHookDebuggerModule : EverestModule
         Logger.SetLogLevel(nameof(ILHookDebuggerModule), LogLevel.Info);
 #endif
     }
+    private static MiGui? Handler;
 
     public override void Load()
     {
+        ImGuiManager.Handlers.Add(Handler = new());
+
         OnMonoMod();
         //AutoRefresh.Value = Settings?.AutoRefresh ?? false;
         //HookMonoModInternal.Value = Settings?.HookMonoModInternal ?? false;
@@ -52,6 +56,7 @@ public class ILHookDebuggerModule : EverestModule
 
     public override void Unload()
     {
+        ImGuiManager.Handlers.Remove(Handler);
         PrintingPod.Clear();
         IgnoreDebugger();
         UnIntegrate();

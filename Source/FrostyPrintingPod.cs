@@ -1,27 +1,34 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Celeste.Mod.MappingUtils.Helpers;
-using Celeste.Mod.MappingUtils.ImGuiHandlers;
 using ImGuiNET;
 using System.Linq;
-using Celeste.Mod.MappingUtils.Commands;
 using MonoMod.RuntimeDetour;
-using Celeste.Mod.MappingUtils;
 using System.Collections;
+using Monocle;
+using Celeste.Mod.ImGuiHelper;
+using Microsoft.Xna.Framework;
+
 namespace Celeste.Mod.ILHookDebugger.MappingUtils
 {
-    public class FrostyPrintingPod : Tab
+    public class FrostyPrintingPod : Mod.MappingUtils.ImGuiHandlers.Tab
     {
         private MethodBase? _selectedMethod;
-        private ComboCache<MethodBase> _comboCache = new();
 
         public override string Name => "ILHookDebugger";
 
         public override bool CanBeVisible() => true;
 
-        readonly List<Duplicant> toremove = [];
-        string? exception = null;
+        public override void Render(Level? level)
+        {
+            MiGui.RenderCore();
+        }
+    }
+
+    public class MiGui : ImGuiHandler
+    {
+        static readonly List<Duplicant> toremove = [];
+        static string? exception = null;
 
         private static readonly FieldInfo DetourManager_detourStates =
             typeof(DetourManager).GetField("detourStates", BindingFlags.Static | BindingFlags.NonPublic)!;
@@ -35,7 +42,34 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             })*/;
         }
 
-        public override void Render(Level? level)
+        static byte[] searchText = new byte[512];
+        static readonly List<(string name, MethodBase method)> searchResult = [];
+        public override void Render()
+        {
+            base.Render();
+
+            if (!Display)
+            {
+                return;
+            }
+
+            ImGui.SetNextWindowPos(new(0, 0), ImGuiCond.FirstUseEver, System.Numerics.Vector2.Zero);
+            ImGui.SetNextWindowSize(new(150 * 2.5f, ImGui.GetMainViewport().Size.Y), ImGuiCond.FirstUseEver);
+
+            if (ImGui.Begin("ILHookDebugger##ILHookDebugger", ImGuiWindowFlags.NoFocusOnAppearing))
+            {
+                try
+                {
+                    RenderCore();
+                }
+                finally
+                {
+                    ImGui.End();
+                }
+            }
+        }
+        public static bool Display = false;
+        public static void RenderCore()
         {
             if (exception is not null)
             {
@@ -91,20 +125,69 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 }
                 ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_RefreshIsAllYouNeed", Dialog.Languages["english"]));
 
-                var hooks = GetEverHookedMethods().ToList();
-                if (ImGuiExt.Combo("Method", ref _selectedMethod!, hooks, m => m?.GetMethodNameForDB() ?? "", _comboCache, tooltip: null,
-                        ImGuiComboFlags.None))
+                if (ImGui.BeginTable("Search..", 1,
+                    ImGuiTableFlags.BordersV | ImGuiTableFlags.BordersOuterH |
+                    ImGuiTableFlags.Resizable | ImGuiTableFlags.RowBg |
+                    ImGuiTableFlags.NoBordersInBody | ImGuiTableFlags.Hideable |
+                    ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.ScrollY,
+                    new(0, ImGui.GetTextLineHeightWithSpacing() * Calc.Clamp(searchResult.Count + 2, 2, 15))))
                 {
-                    if (_selectedMethod is not null)
+
+                    ImGui.TableSetupColumn("Search..", ImGuiTableColumnFlags.NoHide | ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHeaderLabel);
+                    ImGui.TableSetupScrollFreeze(0, 1);
+                    //ImGui.TableHeadersRow();
+                    ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
+                    ImGui.TableSetColumnIndex(0);
+
+                    unsafe
                     {
-                        PrintingPod.Create(_selectedMethod!);
+                        ImGui.InputText("Search..", searchText, 512, ImGuiInputTextFlags.CallbackEdit, i =>
+                        {
+                            var s = System.Text.Encoding.UTF8.GetString(i->Buf, i->BufTextLen).Trim();
+                            if (!string.IsNullOrEmpty(s))
+                            {
+                                searchResult.Clear();
+                                searchResult.AddRange(
+                                    GetEverHookedMethods()
+                                    .Select(x => (x.GetMethodNameForDB(), x))
+                                    .Where(x => x.Item1.Contains(s, StringComparison.OrdinalIgnoreCase))
+                                    .OrderBy(x => x.Item1));
+                            }
+                            else
+                            {
+                                searchResult.Clear();
+                                searchResult.AddRange(GetEverHookedMethods().Select(x => (x.GetMethodNameForDB(), x)).OrderBy(x => x.Item1));
+                            }
+
+                            return 0;
+                        });
                     }
-                    _selectedMethod = null;
+                    ImGui.SameLine();
+                    if (ImGui.Button("Clear"))
+                    {
+                        searchText[0] = 0;
+                        searchResult.Clear();
+                    }
+
+                    foreach (var (na, me) in searchResult)
+                    {
+                        ImGui.TableNextColumn();
+                        if (ImGui.Selectable(na))
+                        {
+                            PrintingPod.Create(me);
+                        }
+                    }
+
+                    ImGui.EndTable();
                 }
 
                 var flags = PrintingPod.AllDuplicants;
                 toremove.Clear();
-                if (ImGui.BeginTable("Debugging", 1, ImGuiExt.TableFlags | ImGuiTableFlags.NoSavedSettings))
+                if (ImGui.BeginTable("Debugging", 1,
+                    ImGuiTableFlags.BordersV | ImGuiTableFlags.BordersOuterH |
+                    ImGuiTableFlags.Resizable | ImGuiTableFlags.RowBg |
+                    ImGuiTableFlags.NoBordersInBody | ImGuiTableFlags.Hideable |
+                    ImGuiTableFlags.NoSavedSettings))
                 {
 
                     ImGui.TableSetupColumn("Debugging", ImGuiTableColumnFlags.NoHide | ImGuiTableColumnFlags.WidthStretch);
@@ -113,7 +196,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     foreach (var f in flags)
                     {
                         ImGui.TableNextColumn();
-                        ImGui.SetNextItemWidth(ItemWidth);
+                        ImGui.SetNextItemWidth(150);
                         if (ImGui.Selectable(f.Target.GetMethodNameForDB()))
                         {
                             toremove.Add(f);
@@ -135,6 +218,35 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     {ex}
                     """));
             }
+        }
+        public override void Update(GameTime gameTime)
+        {
+            base.Update(gameTime);
+            if (ILHookDebuggerModule.Settings.PanelKey?.Pressed ?? false)
+            {
+                ILHookDebuggerModule.Settings.PanelKey.ConsumePress();
+                Display = !Display;
+            }
+        }
+    }
+    static class Helpery
+    {
+        public static string GetMethodNameForDB(this MethodBase method)
+        {
+            ParameterInfo[]? param = null;
+            param = method switch
+            {
+                MethodInfo mi => mi.GetParameters(),
+                ConstructorInfo ci => ci.GetParameters(),
+                _ => null
+            };
+
+            if (param is null)
+            {
+                return $"{method.DeclaringType?.FullName}.{method.Name}(?)";
+            }
+            return $"{method.DeclaringType?.FullName}.{method.Name}({string.Join(',',
+                param.Select(x => x.ParameterType.Name))})";
         }
     }
 }
