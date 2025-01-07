@@ -63,7 +63,13 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 ILHookDebuggerModule.UnloadWhenDetached.Value = cur;
             }
             ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_UnloadWhenDetached_Help", lang));
-            //ImGui.SameLine();
+            ImGui.SameLine();
+            if (ImGui.Button("Save Settings"))
+            {
+                ILHookDebuggerModule.Instance.SaveSettings();
+            }
+
+
 
             if (ImGui.Button("Refresh"))
             {
