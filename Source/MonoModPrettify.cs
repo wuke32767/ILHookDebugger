@@ -30,10 +30,11 @@ namespace Celeste.Mod.ILHookDebugger
                     var l = string.Concat(asmn.Where(rest.Length switch
                     {
                         > 25 => char.IsUpper,
-                        > 15 => i => char.IsUpper(i) || i == 'a' || i == 'e' || i == 'i' || i == 'o' || i == 'u',
+                        > 15 => i => char.IsUpper(i) ||
+                        (char.IsLower(i) && i != 'a' && i != 'e' && i != 'i' && i != 'o' && i != 'u'),
                         _ => any => true,
                     }));
-                    return asmn;
+                    return l;
                 }
                 return "!";
             }
@@ -65,6 +66,21 @@ namespace Celeste.Mod.ILHookDebugger
                 var bg = ic.Clone();
                 int toremove = 3;
                 bg.Next = bg.Prev.Previous.Previous;//-=3
+                //bg.Next==index
+                bool brs(Instruction i) => il.GetIncomingLabels(i).Any();
+                if (brs(bg.Next.Next) || brs(ic.Prev))
+                {
+                    continue;
+                }
+                MethodReference method2 = null!;
+                bool hasInvoke = (ic.Next?.MatchCallOrCallvirt(out method2!) ?? false)
+                                    && method2.Parameters.Count >= 1
+                                    && method2.IsMMInvoke()
+                                    && !brs(ic.Next);
+                if (hasInvoke)
+                {
+                    toremove++;
+                }
                 int index = (int)bg.Next!.Operand;
                 int hash = (int)bg.Next!.Next!.Operand;
                 var storedType = asgen.GenericArguments[0];
@@ -81,21 +97,9 @@ namespace Celeste.Mod.ILHookDebugger
                     _ => stored?.ToString() ?? "!!null",
                 }}", Mono.Cecil.MethodAttributes.Static, storedType);
 
-                il.Method.DeclaringType.Methods.Add(md);
                 var target = new ILCursor(new ILContext(md));
-                target.EmitLdcI4(index);
-                target.EmitLdcI4(hash);
-                target.Emit(ic.Prev.OpCode, ic.Prev.Operand);
-
-                MethodReference method2 = null!;
-                if ((ic.Next?.MatchCallOrCallvirt(out method2!) ?? false)
-                    && method2.Parameters.Count >= 1
-                    && method2.IsMMInvoke()
-                    )
+                if (hasInvoke)
                 {
-                    toremove++;
-                    var va = new VariableDefinition(storedType);
-                    md.Body.Variables.Add(va);
                     foreach (var par in method2.Parameters.SkipLast(1))
                     {
                         md.Parameters.Add(par.Clone());
@@ -124,17 +128,34 @@ namespace Celeste.Mod.ILHookDebugger
                         md.Parameters.AddRange(method2.Parameters.SkipLast(1));
                         md.ReturnType = method2.ReturnType;
                     }
-                    target.EmitStloc(va);
                     for (int i = 0; i < md.Parameters.Count; i++)
                     {
                         target.EmitLdarg(i);
                     }
-                    target.EmitLdloc(va);
+                }
+                target.EmitLdcI4(index);
+                target.EmitLdcI4(hash);
+                target.Emit(ic.Prev.OpCode, ic.Prev.Operand);
+
+                if (hasInvoke)
+                {
                     target.Emit(ic.Next.OpCode, ic.Next.Operand);
                 }
+
+                il.Method.DeclaringType.Methods.Add(md);
                 target.EmitRet();
-                bg.RemoveRange(toremove);
+                bg.MoveAfterLabels();
+                if (bg.IncomingLabels.Any())
+                {
+                    toremove += 0;
+                }
                 bg.EmitCall(md);
+                bg.MoveAfterLabels();
+                if (bg.IncomingLabels.Any())
+                {
+                    toremove += 0;
+                }
+                bg.RemoveRange(toremove);
                 ic = bg;
             }
 

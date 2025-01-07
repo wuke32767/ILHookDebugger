@@ -1,5 +1,6 @@
 ﻿using Celeste.Mod.Helpers.LegacyMonoMod;
 using Mono.Cecil;
+using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
@@ -53,6 +54,7 @@ namespace Celeste.Mod.ILHookDebugger
                 using MemoryStream output = new();
                 var md = il.Method;
                 var backup = il.Instrs.ToArray();
+                var lackup = il.Labels.Select(x => x.Target).ToArray();
                 var dmdtype = md.DeclaringType;
                 var mdm = md.Module;
                 var asm = mdm.Assembly;
@@ -85,6 +87,7 @@ namespace Celeste.Mod.ILHookDebugger
 
                 var hooked = DetourManager.GetDetourInfo(mi).ILHooks;
                 HashSet<string> checks = [];
+                Dictionary<Instruction, object> restore = [];
                 foreach (var instr in il.Instrs)
                 {
                     //var mod = instr.Operand switch
@@ -96,10 +99,12 @@ namespace Celeste.Mod.ILHookDebugger
                     //};
                     if (instr.Operand is ILLabel label)
                     {
+                        restore.Add(instr, label);
                         instr.Operand = label.Target;
                     }
                     else if (instr.Operand is ILLabel[] targets)
                     {
+                        restore.Add(instr, targets);
                         instr.Operand = targets.Select(l => l.Target).ToArray();
                     }
                     //if (mod is not null)
@@ -127,7 +132,15 @@ namespace Celeste.Mod.ILHookDebugger
                     .GetMethod(md.Name)!;
 
                 il.Instrs.Clear();
+                foreach (var (o, b) in il.Labels.Zip(lackup))
+                {
+                    o.Target = b;
+                }
                 il.Instrs.AddRange(backup);
+                foreach(var (k,v) in restore)
+                {
+                    k.Operand = v;
+                }
                 ic.Index = 0;
                 for (var i = 0; i < md.Parameters.Count; i++)
                 {
