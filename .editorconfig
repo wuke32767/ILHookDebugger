@@ -1,0 +1,4 @@
+﻿[*.cs]
+
+# CL0004: Non-static Hook
+dotnet_diagnostic.CL0004.severity = none

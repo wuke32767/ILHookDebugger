@@ -21,6 +21,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
         public override bool CanBeVisible() => true;
 
         readonly List<Duplicant> toremove = [];
+        string? exception = null;
 
         private static readonly FieldInfo DetourManager_detourStates =
             typeof(DetourManager).GetField("detourStates", BindingFlags.Static | BindingFlags.NonPublic)!;
@@ -36,81 +37,103 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
 
         public override void Render(Level? level)
         {
-            if (!Dialog.Languages.TryGetValue("english", out var lang))
+            if (exception is not null)
             {
-                ImGui.Text("Waiting for Everest loading");
+                ImGui.Text("Encounter an error. Check logs.");
+                if (ImGui.Button("ok"))
+                {
+                    exception = null;
+                    return;
+                }
+                ImGui.Text(exception);
                 return;
             }
-            bool cur = ILHookDebuggerModule.BreakOnce;
-            if (ImGui.Checkbox("Break Once", ref cur))
+            try
             {
-                ILHookDebuggerModule.BreakOnce.Value = cur;
-            }
-            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_BreakOnce_Help", lang));
-            ImGui.SameLine();
-
-            cur = ILHookDebuggerModule.PrettifyMonoMod;
-            if (ImGui.Checkbox("Prettify MonoMod", ref cur))
-            {
-                ILHookDebuggerModule.PrettifyMonoMod.Value = cur;
-            }
-            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_PrettifyMonoMod_Help", lang));
-            ImGui.SameLine();
-
-            cur = ILHookDebuggerModule.UnloadWhenDetached;
-            if (ImGui.Checkbox("Unload When Detached", ref cur))
-            {
-                ILHookDebuggerModule.UnloadWhenDetached.Value = cur;
-            }
-            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_UnloadWhenDetached_Help", lang));
-            ImGui.SameLine();
-            if (ImGui.Button("Save Settings"))
-            {
-                ILHookDebuggerModule.Instance.SaveSettings();
-            }
-
-
-
-            if (ImGui.Button("Refresh"))
-            {
-                PrintingPod.Refresh();
-            }
-            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_RefreshIsAllYouNeed", Dialog.Languages["english"]));
-
-            var hooks = GetEverHookedMethods().ToList();
-            if (ImGuiExt.Combo("Method", ref _selectedMethod!, hooks, m => m?.GetMethodNameForDB() ?? "", _comboCache, tooltip: null,
-                    ImGuiComboFlags.None))
-            {
-                if (_selectedMethod is not null)
+                if (!Dialog.Languages.TryGetValue("english", out var lang))
                 {
-                    PrintingPod.Create(_selectedMethod!);
+                    ImGui.Text("Waiting for Everest loading");
+                    return;
                 }
-                _selectedMethod = null;
-            }
-
-            var flags = PrintingPod.AllDuplicants;
-            toremove.Clear();
-            if (ImGui.BeginTable("Debugging", 1, ImGuiExt.TableFlags | ImGuiTableFlags.NoSavedSettings))
-            {
-
-                ImGui.TableSetupColumn("Debugging", ImGuiTableColumnFlags.NoHide | ImGuiTableColumnFlags.WidthStretch);
-                ImGui.TableHeadersRow();
-
-                foreach (var f in flags)
+                bool cur = ILHookDebuggerModule.BreakOnce;
+                if (ImGui.Checkbox("Break Once", ref cur))
                 {
-                    ImGui.TableNextColumn();
-                    ImGui.SetNextItemWidth(ItemWidth);
-                    if (ImGui.Selectable(f.Target.GetMethodNameForDB()))
+                    ILHookDebuggerModule.BreakOnce.Value = cur;
+                }
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_BreakOnce_Help", lang));
+                ImGui.SameLine();
+
+                cur = ILHookDebuggerModule.PrettifyMonoMod;
+                if (ImGui.Checkbox("Prettify MonoMod", ref cur))
+                {
+                    ILHookDebuggerModule.PrettifyMonoMod.Value = cur;
+                }
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_PrettifyMonoMod_Help", lang));
+                ImGui.SameLine();
+
+                cur = ILHookDebuggerModule.UnloadWhenDetached;
+                if (ImGui.Checkbox("Unload When Detached", ref cur))
+                {
+                    ILHookDebuggerModule.UnloadWhenDetached.Value = cur;
+                }
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_UnloadWhenDetached_Help", lang));
+                ImGui.SameLine();
+                if (ImGui.Button("Save Settings"))
+                {
+                    ILHookDebuggerModule.Instance.SaveSettings();
+                }
+
+
+
+                if (ImGui.Button("Refresh"))
+                {
+                    PrintingPod.Refresh();
+                }
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_RefreshIsAllYouNeed", Dialog.Languages["english"]));
+
+                var hooks = GetEverHookedMethods().ToList();
+                if (ImGuiExt.Combo("Method", ref _selectedMethod!, hooks, m => m?.GetMethodNameForDB() ?? "", _comboCache, tooltip: null,
+                        ImGuiComboFlags.None))
+                {
+                    if (_selectedMethod is not null)
                     {
-                        toremove.Add(f);
+                        PrintingPod.Create(_selectedMethod!);
                     }
+                    _selectedMethod = null;
                 }
 
-                ImGui.EndTable();
+                var flags = PrintingPod.AllDuplicants;
+                toremove.Clear();
+                if (ImGui.BeginTable("Debugging", 1, ImGuiExt.TableFlags | ImGuiTableFlags.NoSavedSettings))
+                {
+
+                    ImGui.TableSetupColumn("Debugging", ImGuiTableColumnFlags.NoHide | ImGuiTableColumnFlags.WidthStretch);
+                    ImGui.TableHeadersRow();
+
+                    foreach (var f in flags)
+                    {
+                        ImGui.TableNextColumn();
+                        ImGui.SetNextItemWidth(ItemWidth);
+                        if (ImGui.Selectable(f.Target.GetMethodNameForDB()))
+                        {
+                            toremove.Add(f);
+                        }
+                    }
+
+                    ImGui.EndTable();
+                }
+                foreach (var f in toremove)
+                {
+                    PrintingPod.Remove(f);
+                }
+
             }
-            foreach (var f in toremove)
+            catch (Exception ex)
             {
-                PrintingPod.Remove(f);
+                Logger.Error(nameof(ILHookDebugger), "[MappingUtilsIntegartion]" + (exception = $"""
+                    error.
+                    {ex}
+                    """));
             }
         }
     }
