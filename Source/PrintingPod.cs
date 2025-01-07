@@ -119,6 +119,12 @@ namespace Celeste.Mod.ILHookDebugger
                 }
                 md.FixShortLongOps();
                 //foreach (var s in checks)
+                var debuggable = typeof(DebuggableAttribute).GetConstructor([typeof(bool), typeof(bool)]);
+                var dattr = new CustomAttribute(il.Import(debuggable));
+                dattr.ConstructorArguments.Add(new(mdm.TypeSystem.Boolean, true));
+                dattr.ConstructorArguments.Add(new(mdm.TypeSystem.Boolean, true));
+                asm.CustomAttributes.Add(dattr);
+
                 foreach (var _s in mdm.AssemblyReferences)
                 {
                     var s = _s.Name;
