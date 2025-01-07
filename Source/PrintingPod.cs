@@ -42,6 +42,7 @@ namespace Celeste.Mod.ILHookDebugger
             context.Resolving += (context, asm) =>
             {
                 var f = AppDomain.CurrentDomain.GetAssemblies()
+                    .Reverse()
                     .FirstOrDefault(x => asm.FullName == x.FullName);
                 return f;
 
