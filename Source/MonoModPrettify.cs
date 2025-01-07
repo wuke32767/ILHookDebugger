@@ -125,7 +125,6 @@ namespace Celeste.Mod.ILHookDebugger
                     }
                     else
                     {
-                        md.Parameters.AddRange(method2.Parameters.SkipLast(1));
                         md.ReturnType = method2.ReturnType;
                     }
                     for (int i = 0; i < md.Parameters.Count; i++)
