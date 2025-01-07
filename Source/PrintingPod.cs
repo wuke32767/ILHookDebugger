@@ -63,6 +63,10 @@ namespace Celeste.Mod.ILHookDebugger
 
                 FieldDefinition shouldBreak = new("ShouldNotBreak_YouCanChangeThisFromYourIDEDebugger", Mono.Cecil.FieldAttributes.Static, mdm.TypeSystem.Boolean);
                 dmdtype.Fields.Add(shouldBreak);
+                FieldDefinition slots = new("_slot", Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, il.Import(typeof(object[])));
+                dmdtype.Fields.Add(slots);
+
+                List<object> localslots = [];
 
                 var breaking = il.DefineLabel();
                 ic.EmitLdsfld(shouldBreak);
@@ -83,6 +87,7 @@ namespace Celeste.Mod.ILHookDebugger
                 mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}";
                 asm.Name.Name = $"{(nameof(ILHookDebugger))}#Asm#{unique}";
 
+                il.Steal(localslots, slots);
                 il.Prettify();
 
                 var hooked = DetourManager.GetDetourInfo(mi).ILHooks;
@@ -121,15 +126,20 @@ namespace Celeste.Mod.ILHookDebugger
                     attr.ConstructorArguments.Add(new(mdm.TypeSystem.String, s));
                     asm.CustomAttributes.Add(attr);
                 }
-
+                
 
                 asm.Write(output);
                 output.Seek(0, SeekOrigin.Begin);
 
-                var dup = context
+                var typs = context
                     .LoadFromStream(output)
-                    .GetTypes().First(x => x.Name == dmdtype.Name)
-                    .GetMethod(md.Name)!;
+                    .GetTypes().First(x => x.Name == dmdtype.Name);
+                var dup = typs.GetMethod(md.Name)!;
+                if (localslots.Any())
+                {
+                    var remoteslots = typs.GetField(slots.Name)!;
+                    remoteslots.SetValue(null, localslots.ToArray());
+                }
 
                 il.Instrs.Clear();
                 foreach (var (o, b) in il.Labels.Zip(lackup))
@@ -137,7 +147,7 @@ namespace Celeste.Mod.ILHookDebugger
                     o.Target = b;
                 }
                 il.Instrs.AddRange(backup);
-                foreach(var (k,v) in restore)
+                foreach (var (k, v) in restore)
                 {
                     k.Operand = v;
                 }

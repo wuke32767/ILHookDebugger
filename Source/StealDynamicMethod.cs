@@ -2,6 +2,7 @@
 
 namespace Celeste.Mod.ILHookDebugger
 {
+    using global::Celeste.Mod.Helpers;
     using Mono.Cecil;
     using Mono.Cecil.Cil;
     using MonoMod.Cil;
@@ -19,105 +20,107 @@ namespace Celeste.Mod.ILHookDebugger
     static internal class StealDynamicMethod
     {
         public const string Prefix = "#ILHDStolen#";
-        public const string MMPrefix = "#ILHDFix#";
-        public static void Steal(this ILContext il)
+        public const string MMPrefix = Prefix;
+        public static void Steal(this ILContext il, List<object> localslots, FieldDefinition slots)
         {
-            Dictionary<DynamicMethod, MethodReference> compiled = [];
-            uint i = 0;
             ILCursor ic = new(il);
-            MethodReference mr = null!;
-            while (ic.TryGotoNext(MoveType.Before, x => x.MatchCallOrCallvirt(out mr)
-               /* && mr.Module is null*/)
-                && mr.ResolveReflection() is DynamicMethod dm)
+            DynamicMethod dm = null!;
+            while (ic.TryGotoNext(MoveType.Before, x => (dm = x.Operand as DynamicMethod) is not null
+                || (x.MatchCallOrCallvirt(out var mr)
+                /* && mr.Module is null*/
+                && (dm = mr.ResolveReflection() as DynamicMethod) is not null)))
             {
-                i++;
-                if (dm.Name.StartsWith("MMIL:Invoke<") && dm.Name.EndsWith(">"))
-                {
-                    var sig = MethodSignature.ForMethod(dm);
-                    var def = new MethodDefinition(MMPrefix + i + "#" + dm.Name,
-                        Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Static,
-                        il.Import(sig.ReturnType));
-                    il.Method.DeclaringType.Methods.Add(def);
-                    def.Parameters.AddRange(sig.Parameters.Select(x => new ParameterDefinition(il.Import(x))));
-                    ILCursor ix = new(new ILContext(def));
+                var def = new MethodDefinition(MMPrefix + localslots.Count + "#" + dm.Name,
+                    Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Static,
+                    il.Import(dm.ReturnType ?? typeof(void)));
+                def.Parameters.AddRange(dm.GetParameters().Select(x => new ParameterDefinition(il.Import(x.ParameterType))));
+                il.Method.DeclaringType.Methods.Add(def);
+                var del = MakeDelegate(def);
+                
+                TypeReference objtype = il.Module.TypeSystem.Object;
+                ILCursor ix = new(new ILContext(def));
+                var inslot = localslots.Count;
+                localslots.Add(dm);
+                var delegateslot = localslots.Count;
+                localslots.Add(null!);
 
-                    ix.EmitLdarg(def.Parameters.Count - 1);
-                    for (int j = 0; j < def.Parameters.Count - 1; j++)
-                    {
-                        ix.EmitLdarg(j);
-                    }
-                    ix.EmitCallvirt(il.Import(sig.Parameters.Last().GetMethod("Invoke")));
-                    ix.EmitRet();
-                    var rmp = ic.Next;
-                    ic.Remove();
-                    ic.Emit(rmp.OpCode, def);
-                }
-                continue;
-#pragma warning disable CS0162 // how to duplicate a dynamic method
-                if (compiled.TryGetValue(dm, out var mi))
-                {
-                    //ic.Next.Operand = mi;
-                    continue;
-                }
-                DynamicMethodDefinition dmd = new(dm);
+                ix.EmitLdsfld(slots);
+                ix.EmitLdcI4(delegateslot);
+                ix.EmitLdelemRef();
+                //slot[delegate]
+                ix.EmitBrtrue((ILLabel)null!);
+                //if (slot[delegate] is null)
+                //{
 
-                MethodDefinition steal = dmd.Definition;
-                var dispose = dmd.Module;
-                steal.DeclaringType.Methods.Remove(steal);
-                dmd.Dispose();
-                il.Method.DeclaringType.Methods.Add(steal);
-                steal.Name = Prefix + dm.Name + $"<{i++}>";
-                dispose?.Dispose();
+                ix.EmitLdsfld(slots);
+                ix.EmitLdcI4(delegateslot);
+                //slot[delegate] =
+
+                ix.EmitLdsfld(slots);
+                ix.EmitLdcI4(inslot);
+                ix.EmitLdelemRef();
+                ix.EmitLdtoken(del);
+                ix.EmitCall(typeof(Type).GetMethod("GetTypeFromHandle", [typeof(RuntimeTypeHandle)]));
+                ix.EmitCallvirt(typeof(DynamicMethod).GetMethod("CreateDelegate", [typeof(Type)]));
+                //    slot[inslot].CreateDelegate(del);
+                ix.EmitStelemRef();
+
+                //}
+                ix.EmitLdsfld(slots);
+                ix.Clone()
+                    .GotoPrev(MoveType.Before, x => x.MatchBrtrue(out var l) && l is null)
+                    .Next!.Operand = ix.Prev;
+                ix.EmitLdcI4(delegateslot);
+                ix.EmitLdelemRef();
+                for (int j = 0; j < def.Parameters.Count; j++)
+                {
+                    ix.EmitLdarg(j);
+                }
+                ix.EmitCallvirt(del.Methods.First(x => x.Name == "Invoke"));
+                ix.EmitRet();
+
+                ic.Emit(ic.Next!.OpCode, def);
+                ic.Remove();
+
             }
 
+            static TypeDefinition MakeDelegate(MethodDefinition def)
+            {
+                ModuleDefinition module = def.Module;
+                var deletype = new TypeDefinition("", "ILHookDebugger#Type#Delegate" + def.Name,
+                    Mono.Cecil.TypeAttributes.Public | Mono.Cecil.TypeAttributes.Sealed | Mono.Cecil.TypeAttributes.Class,
+                    module.ImportReference(typeof(MulticastDelegate)));
+                var delector = new MethodDefinition(
+                    ".ctor",
+                    Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.SpecialName | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.RTSpecialName,
+                    module.TypeSystem.Void);
+                delector.IsRuntime = true;
+                delector.Parameters.Add(new ParameterDefinition("object", Mono.Cecil.ParameterAttributes.None, module.TypeSystem.Object));
+                delector.Parameters.Add(new ParameterDefinition("method", Mono.Cecil.ParameterAttributes.None, module.TypeSystem.IntPtr));
+                var deleinvoke = new MethodDefinition("Invoke",
+                    Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.NewSlot,
+                    def.ReturnType);
+                deleinvoke.Parameters.AddRange(def.Parameters.Select(x => x.Clone()));
+                deleinvoke.IsRuntime = true;
+                var deleinvokeb = new MethodDefinition("BeginInvoke",
+                    Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.NewSlot,
+                    def.ReturnType);
+                deleinvokeb.Parameters.AddRange(def.Parameters.Select(x => x.Clone()));
+                deleinvokeb.Parameters.Add(new ParameterDefinition(module.ImportReference(typeof(AsyncCallback))));
+                deleinvokeb.Parameters.Add(new ParameterDefinition(module.TypeSystem.Object));
+                deleinvokeb.IsRuntime = true;
+                var deleinvokee = new MethodDefinition("EndInvoke",
+                    Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.NewSlot,
+                    def.ReturnType);
+                deleinvokeb.Parameters.Add(new ParameterDefinition(module.ImportReference(typeof(IAsyncResult))));
+                deleinvokee.IsRuntime = true;
+                deletype.Methods.Add(delector);
+                deletype.Methods.Add(deleinvoke);
+                deletype.Methods.Add(deleinvokeb);
+                deletype.Methods.Add(deleinvokee);
+                module.Types.Add(deletype);
+                return deletype;
+            }
         }
-
     }
 }
-//namespace proxy
-//{
-//    using System;
-//    using System.Collections.Generic;
-//    using System.Globalization;
-//    using System.Reflection;
-//    using System.Reflection.Emit;
-//    class DynamicProxy(DynamicMethod method) : MethodBase
-//    {
-//        class MethodBodyProxy(DynamicMethod method) : MethodBody
-//        {
-//            public override IList<ExceptionHandlingClause> ExceptionHandlingClauses => method.
-//            public override byte[] GetILAsByteArray() => throw new NotImplementedException();
-//            public override IList<LocalVariableInfo> LocalVariables => throw new NotImplementedException();
-//            public override bool InitLocals { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-//        }
-//        public override MethodBody? GetMethodBody()
-//        {
-//            return new MethodBodyProxy(method);
-//        }
-//        public override bool ContainsGenericParameters => method.ContainsGenericParameters;
-//        public override Type[] GetGenericArguments() => method.GetGenericArguments();
-//        public override CallingConventions CallingConvention => method.CallingConvention;
-//        public override MemberTypes MemberType => method.MemberType;
-//        public override MethodAttributes Attributes => method.Attributes;
-
-//        public override Type DeclaringType => method.DeclaringType;
-
-//        public override RuntimeMethodHandle MethodHandle => method.MethodHandle;
-
-//        public override string Name => method.Name;
-
-//        public override Type ReflectedType => method.ReflectedType;
-
-//        public override object[] GetCustomAttributes(bool inherit) => method.GetCustomAttributes(inherit);
-
-//        public override object[] GetCustomAttributes(Type attributeType, bool inherit) => method.GetCustomAttributes(attributeType, inherit);
-
-//        public override MethodImplAttributes GetMethodImplementationFlags() => method.GetMethodImplementationFlags();
-
-//        public override ParameterInfo[] GetParameters() => method.GetParameters();
-
-//        public override object Invoke(object obj, BindingFlags invokeAttr, Binder binder, object[] parameters, CultureInfo culture) => method.Invoke(obj, invokeAttr, binder, parameters, culture);
-
-//        public override bool IsDefined(Type attributeType, bool inherit) => method.IsDefined(attributeType, inherit);
-//    }
-//}
