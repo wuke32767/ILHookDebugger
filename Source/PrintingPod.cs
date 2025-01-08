@@ -74,7 +74,7 @@ namespace Celeste.Mod.ILHookDebugger
                 ic.EmitBrtrue(breaking);
                 if (ILHookDebuggerModule.BreakOnce)
                 {
-                    ic.EmitLdcI4(1);
+                    ic.EmitCall(typeof(Debugger).GetProperty("IsAttached")!.GetGetMethod()!);
                     ic.EmitStsfld(shouldBreak);
                     shouldBreak.Name = "ShouldNotBreak";
                 }
@@ -133,7 +133,7 @@ namespace Celeste.Mod.ILHookDebugger
                     attr.ConstructorArguments.Add(new(mdm.TypeSystem.String, s));
                     asm.CustomAttributes.Add(attr);
                 }
-                
+
 
                 asm.Write(output);
                 output.Seek(0, SeekOrigin.Begin);
