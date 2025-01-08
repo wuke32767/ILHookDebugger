@@ -8,6 +8,7 @@ using System.Collections;
 using Monocle;
 using Celeste.Mod.ImGuiHelper;
 using Microsoft.Xna.Framework;
+using System.Runtime.InteropServices;
 
 namespace Celeste.Mod.ILHookDebugger.MappingUtils
 {
@@ -124,6 +125,17 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     PrintingPod.Refresh();
                 }
                 ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_RefreshIsAllYouNeed", Dialog.Languages["english"]));
+
+                ImGui.SameLine();
+                //https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.debugger.launch
+                //windows only
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    if (ImGui.Button("Launch IDE Debugger"))
+                    {
+                        System.Diagnostics.Debugger.Launch();
+                    }
+                }
 
                 if (ImGui.BeginTable("Search..", 1,
                     ImGuiTableFlags.BordersV | ImGuiTableFlags.BordersOuterH |
