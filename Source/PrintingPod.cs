@@ -1,4 +1,5 @@
 ﻿using Celeste.Mod.Helpers.LegacyMonoMod;
+using Celeste.Mod.ILHookDebugger.MappingUtils;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
@@ -21,10 +22,14 @@ namespace Celeste.Mod.ILHookDebugger
 
     record class Duplicant(ILHook Detour, AssemblyLoadContext Context, MethodBase Target) : IDisposable
     {
+        public ILHook? Helper;
+        public MemoryStream? Asm;
         public void Dispose()
         {
             Detour?.Dispose();
             Context?.Unload();
+            Asm?.Dispose();
+            Helper?.Dispose();
         }
     }
     internal static class PrintingPod
@@ -47,12 +52,13 @@ namespace Celeste.Mod.ILHookDebugger
                 return f;
 
             };
+            Duplicant duplicant = null!;
             var hook = new ILHook(mi, il =>
             {
                 ILCursor ic = new(il);
 
                 int unique = System.Threading.Interlocked.Increment(ref PrintingPod.unique);
-                using MemoryStream output = new();
+                MemoryStream output = new();
                 var md = il.Method;
                 var backup = il.Instrs.ToArray();
                 var lackup = il.Labels.Select(x => x.Target).ToArray();
@@ -121,7 +127,7 @@ namespace Celeste.Mod.ILHookDebugger
                 md.FixShortLongOps();
                 //foreach (var s in checks)
                 var debuggable = typeof(DebuggableAttribute).GetConstructor([typeof(bool), typeof(bool)]);
-                var dattr = new CustomAttribute(il.Import(debuggable));
+                var dattr = new CustomAttribute(il.Import(debuggable!));
                 dattr.ConstructorArguments.Add(new(mdm.TypeSystem.Boolean, true));
                 dattr.ConstructorArguments.Add(new(mdm.TypeSystem.Boolean, true));
                 asm.CustomAttributes.Add(dattr);
@@ -137,6 +143,9 @@ namespace Celeste.Mod.ILHookDebugger
 
                 asm.Write(output);
                 output.Seek(0, SeekOrigin.Begin);
+
+                duplicant.Asm?.Dispose();
+                duplicant.Asm = output;
 
                 var typs = context
                     .LoadFromStream(output)
@@ -165,9 +174,10 @@ namespace Celeste.Mod.ILHookDebugger
                 }
                 ic.EmitCall(dup);
                 ic.EmitRet();
-            });
-            var dup = new Duplicant(hook, context, mi);
-            AllDuplicants.Add(dup);
+            }, false);
+            duplicant = new(hook, context, mi);
+            hook.Apply();
+            AllDuplicants.Add(duplicant);
             DuplicantLookup.Add(mi, AllDuplicants[^1]);
             //scope.Dispose();
         }
@@ -229,6 +239,30 @@ namespace Celeste.Mod.ILHookDebugger
             DuplicantLookup.Remove(orig.Target);
             AllDuplicants.RemoveAt(at);
             orig.Dispose();
+        }
+
+        internal static void Dump(string dir, bool overwrite)
+        {
+            dir = Path.GetFullPath(dir);
+            Directory.CreateDirectory(dir);
+            foreach (var dup in AllDuplicants)
+            {
+                var path = Path.Combine(dir, dup.Target.GetMethodNameForFileName());
+                var t = path + ".dll";
+                if (!overwrite)
+                {
+                    int c = 0;
+                    while (File.Exists(t))
+                    {
+                        t = string.Concat(path, "(", c++.ToString(), ").dll");
+                    }
+                }
+                path = t;
+                using var file = File.Create(path);
+                var stream = dup.Asm!;
+                stream.Seek(0, SeekOrigin.Begin);
+                stream.CopyTo(file);
+            }
         }
     }
 }

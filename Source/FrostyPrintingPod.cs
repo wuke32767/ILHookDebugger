@@ -9,6 +9,7 @@ using Monocle;
 using Celeste.Mod.ImGuiHelper;
 using Microsoft.Xna.Framework;
 using System.Runtime.InteropServices;
+using System.IO;
 
 namespace Celeste.Mod.ILHookDebugger.MappingUtils
 {
@@ -22,14 +23,16 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
 
         public override void Render(Level? level)
         {
-            MiGui.RenderCore();
+            MiGui.Instance?.RenderCore();
         }
     }
 
     public class MiGui : ImGuiHandler
     {
-        static readonly List<Duplicant> toremove = [];
-        static string? exception = null;
+        public static MiGui Instance = new();
+
+        readonly List<Duplicant> toremove = [];
+        string? exception = null;
 
         private static readonly FieldInfo DetourManager_detourStates =
             typeof(DetourManager).GetField("detourStates", BindingFlags.Static | BindingFlags.NonPublic)!;
@@ -43,8 +46,10 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             })*/;
         }
 
-        static byte[] searchText = new byte[512];
-        static readonly List<(string name, MethodBase method)> searchResult = [];
+        byte[] searchText = new byte[512];
+        byte[] dumpPath = new byte[512];
+        readonly List<(string name, MethodBase method)> searchResult = [];
+
         public override void Render()
         {
             base.Render();
@@ -69,8 +74,9 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 }
             }
         }
-        public static bool Display = false;
-        public static void RenderCore()
+        public bool Display = false;
+        public bool overwrite = false;
+        public void RenderCore()
         {
             if (exception is not null)
             {
@@ -126,11 +132,11 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 }
                 ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_RefreshIsAllYouNeed", Dialog.Languages["english"]));
 
-                ImGui.SameLine();
-                //https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.debugger.launch
-                //windows only
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
+                    ImGui.SameLine();
+                    //https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.debugger.launch
+                    //windows only
                     if (ImGui.Button("Launch IDE Debugger"))
                     {
                         System.Diagnostics.Debugger.Launch();
@@ -221,7 +227,16 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 {
                     PrintingPod.Remove(f);
                 }
-
+                if (ImGui.Button("Dump"))
+                {
+                    var count = dumpPath.TakeWhile(x => x != 0).Count();
+                    PrintingPod.Dump(System.Text.Encoding.UTF8.GetString(dumpPath, 0, count), overwrite);
+                }
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_WhatIsDump", Dialog.Languages["english"]));
+                ImGui.SameLine();
+                ImGui.Checkbox("overwrite", ref overwrite);
+                ImGui.SameLine();
+                ImGui.InputText("Path", dumpPath, 512);
             }
             catch (Exception ex)
             {
@@ -260,6 +275,17 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             return $"{method.DeclaringType?.FullName}.{method.Name}({string.Join(',',
                 param.Select(x => x.ParameterType.Name))})";
         }
+        public static string GetMethodNameForFileName(this MethodBase method) 
+            => new(
+                method
+                .GetMethodNameForDB()
+                .Select(x => invalidFileName.Value.Contains(x) ? '_' : x)
+                .ToArray()
+                );
+        static readonly Lazy<HashSet<char>> invalidFileName = new(() =>
+        {
+            return [.. Path.GetInvalidFileNameChars()];
+        });
     }
 }
 

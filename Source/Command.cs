@@ -17,6 +17,13 @@ namespace Celeste.Mod.ILHookDebugger
             """)]
         public static void InsertDebugger(string fullTypeName, string method, bool modded = false)
         {
+            var tar = GetMethod(fullTypeName, method, modded);
+            InsertDebugger(tar!);
+            Engine.Commands.Log($"Info: Successfully add debugger for the method.");
+        }
+
+        private static MethodInfo? GetMethod(string fullTypeName, string method, bool modded)
+        {
             Assembly asm;
             if (modded)
             {
@@ -26,10 +33,9 @@ namespace Celeste.Mod.ILHookDebugger
             {
                 asm = typeof(Engine).Assembly;
             }
-            var tar = asm.GetType(fullTypeName)!.GetMethod(method, BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            InsertDebugger(tar!);
-            Engine.Commands.Log($"Info: Successfully add debugger for the method.");
+            return asm.GetType(fullTypeName)!.GetMethod(method, BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
         }
+
         [Command("ILDebug_Refresh_All", """
             Refresh all debugging method.
             Mostly do nothing.
@@ -52,6 +58,16 @@ namespace Celeste.Mod.ILHookDebugger
         public static void RemoveAll()
         {
             PrintingPod.Clear();
+        }
+
+        [Command("ILDebug_Dump", """
+            Dump all debuggung methods.
+            (it will export the method to [path].)
+            ([path] will be treated as directory.)
+            """)]
+        public static void Dump(string path, bool overwrite = false)
+        {
+            PrintingPod.Dump(path, overwrite);
         }
 
         public static void InsertDebugger(MethodInfo method)

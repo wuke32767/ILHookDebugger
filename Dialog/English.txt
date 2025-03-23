@@ -6,6 +6,12 @@ If a new hook was added to debugging method,
 it will generate a new assembly, but old one will not be disposed immediately.
 This button collects all unused generated assembly.
 
+in other words, it's useless.
+
+ILHookDebugger_Help_WhatIsDump=
+it will export the method to somewhere.
+you can check it with decompiler.
+
 ILHookDebugger_Settings_MappingUtilsIntegration= Mapping Utils Integration
 ILHookDebugger_Settings_MappingUtilsIntegration_Help=
 You will be able to use this mod in Mapping Utils.
