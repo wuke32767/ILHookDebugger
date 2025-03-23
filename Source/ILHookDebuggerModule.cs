@@ -39,11 +39,10 @@ public class ILHookDebuggerModule : EverestModule
         Logger.SetLogLevel(nameof(ILHookDebuggerModule), LogLevel.Info);
 #endif
     }
-    private static MiGui? Handler;
 
     public override void Load()
     {
-        ImGuiManager.Handlers.Add(Handler = new());
+        ImGuiManager.Handlers.Add(MiGui.Instance);
 
         OnMonoMod();
         //AutoRefresh.Value = Settings?.AutoRefresh ?? false;
@@ -56,7 +55,7 @@ public class ILHookDebuggerModule : EverestModule
 
     public override void Unload()
     {
-        ImGuiManager.Handlers.Remove(Handler);
+        ImGuiManager.Handlers.Remove(MiGui.Instance);
         PrintingPod.Clear();
         IgnoreDebugger();
         UnIntegrate();

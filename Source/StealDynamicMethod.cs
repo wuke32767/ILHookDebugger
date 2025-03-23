@@ -25,63 +25,66 @@ namespace Celeste.Mod.ILHookDebugger
         {
             ILCursor ic = new(il);
             DynamicMethod dm = null!;
-            while (ic.TryGotoNext(MoveType.Before, x => (dm = x.Operand as DynamicMethod) is not null
-                || (x.MatchCallOrCallvirt(out var mr)
-                /* && mr.Module is null*/
-                && (dm = mr.ResolveReflection() as DynamicMethod) is not null)))
+            while (ic.Next is not null)
             {
-                var def = new MethodDefinition(MMPrefix + localslots.Count + "#" + dm.Name,
-                    Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Static,
-                    il.Import(dm.ReturnType ?? typeof(void)));
-                def.Parameters.AddRange(dm.GetParameters().Select(x => new ParameterDefinition(il.Import(x.ParameterType))));
-                il.Method.DeclaringType.Methods.Add(def);
-                var del = MakeDelegate(def);
-                
-                TypeReference objtype = il.Module.TypeSystem.Object;
-                ILCursor ix = new(new ILContext(def));
-                var inslot = localslots.Count;
-                localslots.Add(dm);
-                var delegateslot = localslots.Count;
-                localslots.Add(null!);
-
-                ix.EmitLdsfld(slots);
-                ix.EmitLdcI4(delegateslot);
-                ix.EmitLdelemRef();
-                //slot[delegate]
-                ix.EmitBrtrue((ILLabel)null!);
-                //if (slot[delegate] is null)
-                //{
-
-                ix.EmitLdsfld(slots);
-                ix.EmitLdcI4(delegateslot);
-                //slot[delegate] =
-
-                ix.EmitLdsfld(slots);
-                ix.EmitLdcI4(inslot);
-                ix.EmitLdelemRef();
-                ix.EmitLdtoken(del);
-                ix.EmitCall(typeof(Type).GetMethod("GetTypeFromHandle", [typeof(RuntimeTypeHandle)]));
-                ix.EmitCallvirt(typeof(DynamicMethod).GetMethod("CreateDelegate", [typeof(Type)]));
-                //    slot[inslot].CreateDelegate(del);
-                ix.EmitStelemRef();
-
-                //}
-                ix.EmitLdsfld(slots);
-                ix.Clone()
-                    .GotoPrev(MoveType.Before, x => x.MatchBrtrue(out var l) && l is null)
-                    .Next!.Operand = ix.Prev;
-                ix.EmitLdcI4(delegateslot);
-                ix.EmitLdelemRef();
-                for (int j = 0; j < def.Parameters.Count; j++)
+                if ((dm = ic.Next.Operand as DynamicMethod) is not null
+                    || (ic.Next.Operand is DynamicMethodReference dr
+                    /* && mr.Module is null*/
+                    && (dm = dr.DynamicMethod as DynamicMethod) is not null))
                 {
-                    ix.EmitLdarg(j);
+                    var def = new MethodDefinition(MMPrefix + localslots.Count + "#" + dm.Name,
+                                    Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Static,
+                                    il.Import(dm.ReturnType ?? typeof(void)));
+                    def.Parameters.AddRange(dm.GetParameters().Select(x => new ParameterDefinition(il.Import(x.ParameterType))));
+                    il.Method.DeclaringType.Methods.Add(def);
+                    var del = MakeDelegate(def);
+
+                    TypeReference objtype = il.Module.TypeSystem.Object;
+                    ILCursor ix = new(new ILContext(def));
+                    var inslot = localslots.Count;
+                    localslots.Add(dm);
+                    var delegateslot = localslots.Count;
+                    localslots.Add(null!);
+
+                    ix.EmitLdsfld(slots);
+                    ix.EmitLdcI4(delegateslot);
+                    ix.EmitLdelemRef();
+                    //slot[delegate]
+                    ix.EmitBrtrue((ILLabel)null!);
+                    //if (slot[delegate] is null)
+                    //{
+
+                    ix.EmitLdsfld(slots);
+                    ix.EmitLdcI4(delegateslot);
+                    //slot[delegate] =
+
+                    ix.EmitLdsfld(slots);
+                    ix.EmitLdcI4(inslot);
+                    ix.EmitLdelemRef();
+                    ix.EmitLdtoken(del);
+                    ix.EmitDelegate(Type.GetTypeFromHandle);
+                    ix.EmitCallvirt(typeof(DynamicMethod).GetMethod("CreateDelegate", [typeof(Type)]));
+                    //    slot[inslot].CreateDelegate(del);
+                    ix.EmitStelemRef();
+
+                    //}
+                    ix.EmitLdsfld(slots);
+                    ix.Clone()
+                        .GotoPrev(MoveType.Before, x => x.MatchBrtrue(out var l) && l is null)
+                        .Next!.Operand = ix.Prev;
+                    ix.EmitLdcI4(delegateslot);
+                    ix.EmitLdelemRef();
+                    for (int j = 0; j < def.Parameters.Count; j++)
+                    {
+                        ix.EmitLdarg(j);
+                    }
+                    ix.EmitCallvirt(del.Methods.First(x => x.Name == "Invoke"));
+                    ix.EmitRet();
+
+                    ic.Emit(ic.Next.OpCode, def);
+                    ic.Remove();
                 }
-                ix.EmitCallvirt(del.Methods.First(x => x.Name == "Invoke"));
-                ix.EmitRet();
-
-                ic.Emit(ic.Next!.OpCode, def);
-                ic.Remove();
-
+                ic.Index++;
             }
 
             static TypeDefinition MakeDelegate(MethodDefinition def)
@@ -102,22 +105,8 @@ namespace Celeste.Mod.ILHookDebugger
                     def.ReturnType);
                 deleinvoke.Parameters.AddRange(def.Parameters.Select(x => x.Clone()));
                 deleinvoke.IsRuntime = true;
-                var deleinvokeb = new MethodDefinition("BeginInvoke",
-                    Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.NewSlot,
-                    def.ReturnType);
-                deleinvokeb.Parameters.AddRange(def.Parameters.Select(x => x.Clone()));
-                deleinvokeb.Parameters.Add(new ParameterDefinition(module.ImportReference(typeof(AsyncCallback))));
-                deleinvokeb.Parameters.Add(new ParameterDefinition(module.TypeSystem.Object));
-                deleinvokeb.IsRuntime = true;
-                var deleinvokee = new MethodDefinition("EndInvoke",
-                    Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.NewSlot,
-                    def.ReturnType);
-                deleinvokeb.Parameters.Add(new ParameterDefinition(module.ImportReference(typeof(IAsyncResult))));
-                deleinvokee.IsRuntime = true;
                 deletype.Methods.Add(delector);
                 deletype.Methods.Add(deleinvoke);
-                deletype.Methods.Add(deleinvokeb);
-                deletype.Methods.Add(deleinvokee);
                 module.Types.Add(deletype);
                 return deletype;
             }

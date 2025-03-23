@@ -14,11 +14,20 @@ namespace Celeste.Mod.ILHookDebugger
     public static partial class MonoModPrettify
     {
         public static Dictionary<string, string> Names = [];
-        public static string ModName(MethodInfo ins, string rest)
+        public static string ModName(MethodInfo ins)
         {
-            return NewMethod(ins) + "_" + rest;
+            var name = ins.Name;
+            if (MatchLambda().Match(name) is { Success: true } lam)
+            {
+                name = $"{lam.Groups["in"]}@lam";
+            }
+            else if (MatchLocalFunc().Match(name) is { Success: true } loc)
+            {
+                name = $"{loc.Groups["in"]}{loc.Groups["id"]}{loc.Groups["name"]}";
+            }
+            return NewMethod(ins) + "_" + name;
 
-            string NewMethod(MethodInfo ins)
+            static string NewMethod(MethodInfo ins)
             {
                 var asmn = ins.Module?.Assembly?.GetName()?.Name;
                 if (asmn is not null)
@@ -27,7 +36,7 @@ namespace Celeste.Mod.ILHookDebugger
                     {
                         return pre;
                     }
-                    var l = string.Concat(asmn.Where(rest.Length switch
+                    var l = string.Concat(asmn.Where(ins.Name.Length switch
                     {
                         > 25 => char.IsUpper,
                         > 15 => i => char.IsUpper(i) ||
@@ -36,7 +45,7 @@ namespace Celeste.Mod.ILHookDebugger
                     }));
                     return l;
                 }
-                return "!";
+                return "!NoModule";
             }
         }
         static MethodInfo GetValueTUnsafeT =
@@ -90,8 +99,8 @@ namespace Celeste.Mod.ILHookDebugger
                 {
                     Delegate d => d.GetInvocationList() switch
                     {
-                    [var s] => ModName(s.Method, s.Method.Name),
-                    [] => "!Empty",
+                        [var s] => ModName(s.Method),
+                        [] => "!Empty",
                         _ => d.Method.Name.ToString() + "#AndMore"
                     },
                     _ => stored?.ToString() ?? "!!null",
@@ -104,10 +113,11 @@ namespace Celeste.Mod.ILHookDebugger
                     {
                         md.Parameters.Add(par.Clone());
                     }
+                    md.ReturnType = method2.ReturnType;
                     if (method2 is GenericInstanceMethod gem)
                     {
                         var resolve = gem.GenericArguments;
-                        if (method2.ReturnType is GenericParameter gen)
+                        if (md.ReturnType is GenericParameter gen)
                         {
                             md.ReturnType = resolve[gen.Position];
                         }
@@ -122,10 +132,6 @@ namespace Celeste.Mod.ILHookDebugger
                                 md.Parameters[i].ParameterType = resolve[gen2.Position];
                             }
                         }
-                    }
-                    else
-                    {
-                        md.ReturnType = method2.ReturnType;
                     }
                     for (int i = 0; i < md.Parameters.Count; i++)
                     {
@@ -161,6 +167,10 @@ namespace Celeste.Mod.ILHookDebugger
         }
         [GeneratedRegex(@"\AInvoke(Void|Type)(Val|Ref)(1[0-6]|[1-9])\z", RegexOptions.ExplicitCapture)]
         public static partial Regex MatchMMInvoke();
+        [GeneratedRegex(@"\A<(?<in>[^>]+)>b__\d+(_\d+)?\z", RegexOptions.ExplicitCapture)]
+        public static partial Regex MatchLambda();
+        [GeneratedRegex(@"\A<(?<in>[^>]+)>g__(?<name>[^\|]+)\|(?<id>\d+_\d+)\z", RegexOptions.ExplicitCapture)]
+        public static partial Regex MatchLocalFunc();
 
         static bool IsMMInvoke(this MethodReference md)
         {
