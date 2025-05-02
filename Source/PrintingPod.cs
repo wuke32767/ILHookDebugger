@@ -84,9 +84,14 @@ namespace Celeste.Mod.ILHookDebugger
                 };
                 Relinker relink = (mtp, ctx) =>
                 {
-                    if (mtp is MethodReference mr)
+                    //if (mtp is MethodReference mr)
                     {
-                        if (mr.Is(mi) || mr == md)
+                        if (mtp == md
+                        //|| (mr.FullName == md.FullName
+                        //    && mr.DeclaringType.FullName == md.DeclaringType.FullName
+                        //    && mr.DeclaringType.Scope.Name == md.DeclaringType.Scope.Name)
+                        //dmd dynamic method backend won't check this, only cecil backend checks
+                        )
                             return md!;
                     }
                     return mdm.ImportReference(mtp);
