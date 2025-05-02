@@ -23,7 +23,7 @@ namespace Celeste.Mod.ILHookDebugger
     record class Duplicant(ILHook Detour, AssemblyLoadContext Context, MethodBase Target) : IDisposable
     {
         public ILHook? Helper;
-        public MemoryStream? Asm;
+        public Stream? Asm;
         public void Dispose()
         {
             Detour?.Dispose();
@@ -34,6 +34,90 @@ namespace Celeste.Mod.ILHookDebugger
     }
     internal static class PrintingPod
     {
+        static Type StrongBoxType = typeof(StrongBox<bool>);
+        static FieldInfo StrongBoxValue = StrongBoxType.GetField(nameof(StrongBox<bool>.Value))!;
+
+        internal class Guardian(string toRelease) : IDisposable
+        {
+            internal static void Clear()
+            {
+                GC.Collect();
+                var old = System.Threading.Interlocked.Exchange(ref table, []);
+                foreach (var (_, g) in old)
+                {
+                    g.Dispose();
+                }
+                old.Clear();
+            }
+            void Delete()
+            {
+                try
+                {
+                    File.Delete(toRelease);
+                }
+                catch
+                {
+                    GC.Collect();
+                    failed.Add(toRelease);
+                    TryReClear();
+                }
+            }
+            internal void TryReClear()
+            {
+                try
+                {
+                    for (int i1 = 0; i1 < failed.Count; i1++)
+                    {
+                        string? i = failed[i1];
+                        if (i is { })
+                        {
+                            File.Delete(toRelease);
+                        }
+                        failed[i1] = null;
+                    }
+                }
+                catch
+                {
+                }
+                failed.Reverse();
+                while (failed.Count > 0 && failed[^1] is null)
+                {
+                    failed.RemoveAt(failed.Count - 1);
+                }
+            }
+            internal static List<string?> failed = [];
+            internal static ConditionalWeakTable<Assembly, Guardian> table = new();
+
+            internal static void Update(Assembly assembly, string toRelease)
+            {
+                table.AddOrUpdate(assembly, new(toRelease));
+            }
+
+            private bool disposedValue;
+            protected virtual void Dispose(bool disposing)
+            {
+                if (!disposedValue)
+                {
+                    if (disposing)
+                    {
+                    }
+
+                    Delete();
+                    disposedValue = true;
+                }
+            }
+
+            ~Guardian()
+            {
+                Dispose(disposing: false);
+            }
+
+            public void Dispose()
+            {
+                Dispose(disposing: true);
+                GC.SuppressFinalize(this);
+            }
+        }
         public static List<Duplicant> AllDuplicants = [];
         public static Dictionary<MethodBase, Duplicant> DuplicantLookup = [];
         static int unique;
@@ -58,7 +142,6 @@ namespace Celeste.Mod.ILHookDebugger
                 ILCursor ic = new(il);
 
                 int unique = System.Threading.Interlocked.Increment(ref PrintingPod.unique);
-                MemoryStream output = new();
                 var md = il.Method;
                 var backup = il.Instrs.ToArray();
                 var lackup = il.Labels.Select(x => x.Target).ToArray();
@@ -140,7 +223,13 @@ namespace Celeste.Mod.ILHookDebugger
                     Run(relink);
                 }
 
-                FieldDefinition shouldBreak = new("ShouldNotBreak_YouCanChangeThisFromYourIDEDebugger", Mono.Cecil.FieldAttributes.Static, mdm.TypeSystem.Boolean);
+                FieldDefinition shouldBreak = new("ShouldNotBreak_YouCanChangeThisFromYourIDEDebugger",
+                        Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, mdm.TypeSystem.Boolean);
+                var boxed = ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanOnlyModifyRefValues);
+                if (boxed)
+                {
+                    shouldBreak.FieldType = mdm.ImportReference(StrongBoxType);
+                }
                 dmdtype.Fields.Add(shouldBreak);
                 FieldDefinition slots = new("_slot", Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, il.Import(typeof(object[])));
                 dmdtype.Fields.Add(slots);
@@ -149,23 +238,46 @@ namespace Celeste.Mod.ILHookDebugger
 
                 var breaking = il.DefineLabel();
                 ic.EmitLdsfld(shouldBreak);
+                if (boxed)
+                {
+                    ic.EmitLdfld(StrongBoxValue);
+                }
                 ic.EmitBrtrue(breaking);
                 if (ILHookDebuggerModule.BreakOnce)
                 {
+                    if (boxed)
+                    {
+                        ic.EmitLdsfld(shouldBreak);
+                    }
                     ic.EmitCall(typeof(Debugger).GetProperty("IsAttached")!.GetGetMethod()!);
-                    ic.EmitStsfld(shouldBreak);
+                    if (boxed)
+                    {
+                        ic.EmitStfld(StrongBoxValue);
+                    }
+                    else
+                    {
+                        ic.EmitStsfld(shouldBreak);
+                    }
                     shouldBreak.Name = "ShouldNotBreak";
                 }
                 ic.EmitDelegate(Debugger.Break);
                 ic.MarkLabel(breaking);
 
                 md.Name = mi.Name;
-                dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType!.Name}";
                 dmdtype.BaseType = mdm.TypeSystem.Object;
-                dmdtype.Namespace = mi.DeclaringType.Namespace;
-                mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}";
-                asm.Name.Name = $"{(nameof(ILHookDebugger))}#Asm#{unique}";
-
+                dmdtype.Namespace = mi.DeclaringType?.Namespace;
+                if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName))
+                {
+                    dmdtype.Name = $"{nameof(ILHookDebugger)}_Type_{unique}_{mi.DeclaringType?.Name ?? "_Module"}";
+                    mdm.Name = $"{nameof(ILHookDebugger)}_Module_{unique}";
+                    asm.Name.Name = $"{(nameof(ILHookDebugger))}_Asm_{unique}";
+                }
+                else
+                {
+                    dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType?.Name ?? "<Module>"}";
+                    mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}";
+                    asm.Name.Name = $"{(nameof(ILHookDebugger))}#Asm#{unique}";
+                }
                 il.Steal(localslots, slots);
                 il.Prettify();
 
@@ -213,20 +325,39 @@ namespace Celeste.Mod.ILHookDebugger
                 }
 
 
-                asm.Write(output);
-                output.Seek(0, SeekOrigin.Begin);
-
                 duplicant.Asm?.Dispose();
-                duplicant.Asm = output;
 
-                var typs = context
-                    .LoadFromStream(output)
-                    .GetTypes().First(x => x.Name == dmdtype.Name);
+                Assembly _tmp;
+                if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.RequiresFileAssembly))
+                {
+                    var path = Path.Combine(ILHookDebuggerModule.CachePath, asm.Name.Name + ".dll");
+                    Directory.CreateDirectory(ILHookDebuggerModule.CachePath);
+                    asm.Write(path);
+                    _tmp = context.LoadFromAssemblyPath(path);
+                    Guardian.Update(_tmp, path);
+
+                    duplicant.Asm = File.OpenRead(path);
+                }
+                else
+                {
+                    MemoryStream output = new();
+                    asm.Write(output);
+                    output.Seek(0, SeekOrigin.Begin);
+
+                    duplicant.Asm = output;
+                    _tmp = context.LoadFromStream(output);
+                }
+                Type typs = _tmp.GetTypes().First(x => x.Name == dmdtype.Name); ;
                 var dup = typs.GetMethod(md.Name)!;
                 if (localslots.Any())
                 {
                     var remoteslots = typs.GetField(slots.Name)!;
                     remoteslots.SetValue(null, localslots.ToArray());
+                }
+                if (boxed)
+                {
+                    var remotebox = typs.GetField(shouldBreak.Name)!;
+                    remotebox.SetValue(null, new StrongBox<bool>(false));
                 }
 
                 il.Instrs.Clear();

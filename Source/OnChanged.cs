@@ -20,7 +20,7 @@ namespace Celeste.Mod.ILHookDebugger
                 return val;
             };
     }
-    public struct OnChanged<T>(Func<T?, T?> OnChange, Action<T?>? Changed = null, T? init = default) where T : IEquatable<T>
+    public struct OnChanged<T>(Func<T?, T?> OnChange, Action<T?>? Changed = null, T? init = default)
     {
 
         private T? val = init;

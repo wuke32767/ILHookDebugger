@@ -19,20 +19,21 @@ namespace Celeste.Mod.ILHookDebugger
     using System.Threading.Tasks;
     static internal class StealDynamicMethod
     {
-        public const string Prefix = "#ILHDStolen#";
-        public const string MMPrefix = Prefix;
+        public static string Prefix => ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName) ? "ILHDStolen_" : "#ILHDStolen#";
+        public static string MMPrefix => Prefix;
         public static void Steal(this ILContext il, List<object> localslots, FieldDefinition slots)
         {
             ILCursor ic = new(il);
-            DynamicMethod dm = null!;
+            DynamicMethod? dm = null;
             while (ic.Next is not null)
             {
-                if ((dm = ic.Next.Operand as DynamicMethod) is not null
-                    || (ic.Next.Operand is DynamicMethodReference dr
-                    /* && mr.Module is null*/
-                    && (dm = dr.DynamicMethod as DynamicMethod) is not null))
+                dm = null;
+                dm ??= ic.Next.Operand as DynamicMethod;
+                dm ??= (ic.Next.Operand as DynamicMethodReference)?.DynamicMethod as DynamicMethod;
+                if (dm is not null)
                 {
-                    var def = new MethodDefinition(MMPrefix + localslots.Count + "#" + dm.Name,
+                    string V = ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName) ? "_" : "#";
+                    var def = new MethodDefinition(MMPrefix + localslots.Count + V + dm.Name,
                                     Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Static,
                                     il.Import(dm.ReturnType ?? typeof(void)));
                     def.Parameters.AddRange(dm.GetParameters().Select(x => new ParameterDefinition(il.Import(x.ParameterType))));

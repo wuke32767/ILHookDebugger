@@ -17,17 +17,19 @@ namespace Celeste.Mod.ILHookDebugger
         public static string ModName(MethodInfo ins)
         {
             var name = ins.Name;
+            var split = ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName)
+                ? "_" : "@";
             if (MatchLambda().Match(name) is { Success: true } lam)
             {
-                name = $"{lam.Groups["in"]}@lam";
+                name = $"{lam.Groups["in"]}{split}lam";
             }
             else if (MatchLocalFunc().Match(name) is { Success: true } loc)
             {
                 name = $"{loc.Groups["in"]}{loc.Groups["id"]}{loc.Groups["name"]}";
             }
-            return NewMethod(ins) + "_" + name;
+            return name + split + GetShortModName(ins);
 
-            static string NewMethod(MethodInfo ins)
+            static string GetShortModName(MethodInfo ins)
             {
                 var asmn = ins.Module?.Assembly?.GetName()?.Name;
                 if (asmn is not null)
@@ -45,7 +47,9 @@ namespace Celeste.Mod.ILHookDebugger
                     }));
                     return l;
                 }
-                return "!NoModule";
+                return ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName)
+                    ? "NoModule"
+                    : "!NoModule";
             }
         }
         static MethodInfo GetValueTUnsafeT =
@@ -62,14 +66,21 @@ namespace Celeste.Mod.ILHookDebugger
             GenericInstanceMethod asgen = null!;
             bool check(Instruction i) =>
                 i.MatchCallOrCallvirt(out method!)
-                && (asgen = method as GenericInstanceMethod) is not null
-                && method.DeclaringType.FullName == "MonoMod.Utils.DynamicReferenceManager"
-                && method.Name == "GetValueTUnsafe"
-                && method.Parameters.Count == 2
+                && method is GenericInstanceMethod
+                {
+                    DeclaringType:
+                    {
+                        Namespace: "MonoMod.Utils",
+                        Name: "DynamicReferenceManager",
+                        Scope: AssemblyNameReference { Name: "MonoMod.Utils" }
+                    },
+                    Name: "GetValueTUnsafe",
+                    Parameters.Count: 2,
+                    GenericArguments.Count: 1
+                } a
                 && typeof(int).Is(method.Parameters[0].ParameterType)
                 && typeof(int).Is(method.Parameters[1].ParameterType)
-                //&& method.Module.Assembly.Name.Name == "MonoMod.Utils"
-                && asgen.GenericArguments.Count == 1;
+                && (asgen = a) == a;
             while (ic.TryGotoNext(MoveType.After, check))
             {
                 var bg = ic.Clone();
@@ -95,16 +106,34 @@ namespace Celeste.Mod.ILHookDebugger
                 var storedType = asgen.GenericArguments[0];
                 var stored = GetValueTUnsafeT.MakeGenericMethod(storedType.ResolveReflection()).Invoke(null, [index, hash]);
 
-                var md = new MethodDefinition($"@{unique++}_{stored switch
+                string name;
+                if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName))
                 {
-                    Delegate d => d.GetInvocationList() switch
+                    name = $"Reference_{unique++}_{stored switch
                     {
-                        [var s] => ModName(s.Method),
-                        [] => "!Empty",
-                        _ => d.Method.Name.ToString() + "#AndMore"
-                    },
-                    _ => stored?.ToString() ?? "!!null",
-                }}", Mono.Cecil.MethodAttributes.Static, storedType);
+                        Delegate d => d.GetInvocationList() switch
+                        {
+                            [var s] => ModName(s.Method),
+                            [] => "_Empty",
+                            [var s, ..] => ModName(s.Method) + "_AndMore",
+                        },
+                        _ => stored?.ToString() ?? "__null",
+                    }}";
+                }
+                else
+                {
+                    name = $"@{unique++}_{stored switch
+                    {
+                        Delegate d => d.GetInvocationList() switch
+                        {
+                            [var s] => ModName(s.Method),
+                            [] => "!Empty",
+                            [var s, ..] => ModName(s.Method) + "#AndMore",
+                        },
+                        _ => stored?.ToString() ?? "!!null",
+                    }}";
+                }
+                var md = new MethodDefinition(name, Mono.Cecil.MethodAttributes.Static, storedType);
 
                 var target = new ILCursor(new ILContext(md));
                 if (hasInvoke)

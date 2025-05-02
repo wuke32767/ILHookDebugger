@@ -8,12 +8,26 @@ using MonoMod.Utils;
 using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using YamlDotNet.Core.Tokens;
 
 namespace Celeste.Mod.ILHookDebugger;
+public enum Compatibility
+{
+    None = 0, VisualStudio, Rider,
+};
+[Flags]
+public enum IDEFeatures
+{
+    None = 0,
+    NormalizeName = 1 << 0,
+    CanDebuggerLaunch = 1 << 1,
+    RequiresFileAssembly = 1 << 2,
+    CanOnlyModifyRefValues = 1 << 3,
+}
 
 public class ILHookDebuggerModule : EverestModule
 {
@@ -39,11 +53,25 @@ public class ILHookDebuggerModule : EverestModule
         Logger.SetLogLevel(nameof(ILHookDebuggerModule), LogLevel.Info);
 #endif
     }
-
+    public static string CachePath = Path.Combine(Everest.Loader.PathCache, "ILHookDebuggerCache");
     public override void Load()
     {
-        ImGuiManager.Handlers.Add(MiGui.Instance);
+#if DEBUG
+        GC.Collect();
+#endif
+        try
+        {
+            if (Directory.Exists(CachePath))
+            {
+                Directory.Delete(CachePath, true);
+            }
+        }
+        catch
+        {
 
+        }
+        ImGuiManager.Handlers.Add(MiGui.Instance);
+        AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
         OnMonoMod();
         //AutoRefresh.Value = Settings?.AutoRefresh ?? false;
         //HookMonoModInternal.Value = Settings?.HookMonoModInternal ?? false;
@@ -53,12 +81,22 @@ public class ILHookDebuggerModule : EverestModule
         // TODO: apply any hooks that should always be active
     }
 
+    private void CurrentDomain_ProcessExit(object? sender, EventArgs e)
+    {
+        PrintingPod.Clear();
+        GC.Collect();
+        PrintingPod.Guardian.Clear();
+    }
+
     public override void Unload()
     {
         ImGuiManager.Handlers.Remove(MiGui.Instance);
         PrintingPod.Clear();
         IgnoreDebugger();
+        AppDomain.CurrentDomain.ProcessExit -= CurrentDomain_ProcessExit;
         UnIntegrate();
+        GC.Collect();
+        PrintingPod.Guardian.Clear();
         // TODO: unapply any hooks applied in Load()
     }
 
@@ -105,6 +143,23 @@ public class ILHookDebuggerModule : EverestModule
             }
         }
         return false;
+    });
+    public static IDEFeatures CurrentFeature;
+    internal static OnChanged<Compatibility> IDE = new(_ => { }, o =>
+    {
+        CurrentFeature = o switch
+        {
+            Compatibility.VisualStudio =>
+                IDEFeatures.NormalizeName |
+                IDEFeatures.CanDebuggerLaunch,
+            Compatibility.Rider =>
+                IDEFeatures.NormalizeName |
+                IDEFeatures.RequiresFileAssembly |
+                IDEFeatures.CanOnlyModifyRefValues,
+            _ =>
+                IDEFeatures.None,
+        };
+        PrintingPod.Refresh();
     });
     // mappingutils can be not loaded
     static object? toremove;

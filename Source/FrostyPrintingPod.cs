@@ -132,7 +132,8 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 }
                 ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_RefreshIsAllYouNeed", Dialog.Languages["english"]));
 
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    && ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanDebuggerLaunch))
                 {
                     ImGui.SameLine();
                     //https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.debugger.launch
@@ -142,6 +143,8 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                         System.Diagnostics.Debugger.Launch();
                     }
                 }
+                
+                ImGui.Text("");
 
                 if (ImGui.BeginTable("Search..", 1,
                     ImGuiTableFlags.BordersV | ImGuiTableFlags.BordersOuterH |
@@ -199,6 +202,8 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     ImGui.EndTable();
                 }
 
+                ImGui.Text("");
+
                 var flags = PrintingPod.AllDuplicants;
                 toremove.Clear();
                 if (ImGui.BeginTable("Debugging", 1,
@@ -211,22 +216,33 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     ImGui.TableSetupColumn("Debugging", ImGuiTableColumnFlags.NoHide | ImGuiTableColumnFlags.WidthStretch);
                     ImGui.TableHeadersRow();
 
-                    foreach (var f in flags)
+                    if (flags.Count == 0)
                     {
                         ImGui.TableNextColumn();
                         ImGui.SetNextItemWidth(150);
-                        if (ImGui.Selectable(f.Target.GetMethodNameForDB()))
+                        ImGui.TextDisabled("Empty...");
+                    }
+                    else
+                    {
+                        foreach (var f in flags)
                         {
-                            toremove.Add(f);
+                            ImGui.TableNextColumn();
+                            ImGui.SetNextItemWidth(150);
+                            if (ImGui.Selectable(f.Target.GetMethodNameForDB()))
+                            {
+                                toremove.Add(f);
+                            }
                         }
                     }
-
                     ImGui.EndTable();
                 }
                 foreach (var f in toremove)
                 {
                     PrintingPod.Remove(f);
                 }
+
+                ImGui.Text("");
+
                 if (ImGui.Button("Dump"))
                 {
                     var count = dumpPath.TakeWhile(x => x != 0).Count();
@@ -237,6 +253,13 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 ImGui.Checkbox("overwrite", ref overwrite);
                 ImGui.SameLine();
                 ImGui.InputText("Path", dumpPath, 512);
+
+                var enums = Enum.GetNames<Compatibility>();
+                int curi = (int)ILHookDebuggerModule.IDE.Value;
+                if (ImGui.ListBox("IDE", ref curi, enums, enums.Length))
+                {
+                    ILHookDebuggerModule.IDE.Value = (Compatibility)curi;
+                }
             }
             catch (Exception ex)
             {
@@ -275,7 +298,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             return $"{method.DeclaringType?.FullName}.{method.Name}({string.Join(',',
                 param.Select(x => x.ParameterType.Name))})";
         }
-        public static string GetMethodNameForFileName(this MethodBase method) 
+        public static string GetMethodNameForFileName(this MethodBase method)
             => new(
                 method
                 .GetMethodNameForDB()

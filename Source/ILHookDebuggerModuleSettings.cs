@@ -39,6 +39,16 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
             ILHookDebuggerModule.UnloadWhenDetached.Value = value;
         }
     }
+    [SettingName("ILHookDebugger_Settings_UnloadWhenDetached")]
+    [SettingSubText("ILHookDebugger_Settings_UnloadWhenDetached_Help")]
+    public Compatibility IDE
+    {
+        get => ILHookDebuggerModule.IDE;
+        set
+        {
+            ILHookDebuggerModule.IDE.Value = value;
+        }
+    }
     public bool MappingUtilsIntegration
     {
         get => ILHookDebuggerModule.MappingUtilsIntegration;
