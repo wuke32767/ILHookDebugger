@@ -17,7 +17,7 @@ using YamlDotNet.Core.Tokens;
 namespace Celeste.Mod.ILHookDebugger;
 public enum Compatibility
 {
-    None = 0, VisualStudio, Rider,
+    None = 0, VisualStudio, Rider, dnSpy,
 };
 [Flags]
 public enum IDEFeatures
@@ -27,6 +27,7 @@ public enum IDEFeatures
     CanDebuggerLaunch = 1 << 1,
     RequiresFileAssembly = 1 << 2,
     CanOnlyModifyRefValues = 1 << 3,
+    CanNotModifyValues = 1 << 4,
 }
 
 public class ILHookDebuggerModule : EverestModule
@@ -156,6 +157,8 @@ public class ILHookDebuggerModule : EverestModule
                 IDEFeatures.NormalizeName |
                 IDEFeatures.RequiresFileAssembly |
                 IDEFeatures.CanOnlyModifyRefValues,
+            Compatibility.dnSpy =>
+                IDEFeatures.CanNotModifyValues,
             _ =>
                 IDEFeatures.None,
         };

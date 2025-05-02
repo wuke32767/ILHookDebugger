@@ -20,3 +20,11 @@ MonoMod 在 EmitDelegate 中使用了一些黑科技以正确支持委托，
 但是会在反编译中产生一些垃圾代码。
 这个选项将把垃圾代码移走，并留下一个比较可读的名字。
 
+ILHookDebugger_Settings_IDE=IDE 兼容性
+ILHookDebugger_Settings_IDE_Help=
+选择你正在使用的 IDE，可以优化调试体验。
+Rider 用户必须选择 Rider，否则无法调试。
+
+ILHookDebugger_Settings_BreakOnce_Help_Disabled=
+推荐你开启，不要不识好歹（
+关闭后你可能无法阻止断点被激活。

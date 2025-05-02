@@ -97,11 +97,22 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     return;
                 }
                 bool cur = ILHookDebuggerModule.BreakOnce;
-                if (ImGui.Checkbox("Break Once", ref cur))
+                if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanNotModifyValues))
                 {
-                    ILHookDebuggerModule.BreakOnce.Value = cur;
+                    cur = true;
+                    ImGui.BeginDisabled();
+                    ImGui.Checkbox("Break Once", ref cur);
+                    ImGui.EndDisabled();
+                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_BreakOnce_Help_Disabled", lang));
                 }
-                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_BreakOnce_Help", lang));
+                else
+                {
+                    if (ImGui.Checkbox("Break Once", ref cur))
+                    {
+                        ILHookDebuggerModule.BreakOnce.Value = cur;
+                    }
+                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_BreakOnce_Help", lang));
+                }
                 ImGui.SameLine();
 
                 cur = ILHookDebuggerModule.PrettifyMonoMod;
@@ -143,7 +154,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                         System.Diagnostics.Debugger.Launch();
                     }
                 }
-                
+
                 ImGui.Text("");
 
                 if (ImGui.BeginTable("Search..", 1,

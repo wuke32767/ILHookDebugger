@@ -39,8 +39,8 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
             ILHookDebuggerModule.UnloadWhenDetached.Value = value;
         }
     }
-    [SettingName("ILHookDebugger_Settings_UnloadWhenDetached")]
-    [SettingSubText("ILHookDebugger_Settings_UnloadWhenDetached_Help")]
+    [SettingName("ILHookDebugger_Settings_IDE")]
+    [SettingSubText("ILHookDebugger_Settings_IDE_Help")]
     public Compatibility IDE
     {
         get => ILHookDebuggerModule.IDE;
@@ -55,6 +55,26 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
         set
         {
             ILHookDebuggerModule.MappingUtilsIntegration.Value = value;
+        }
+    }
+    public void CreateBreakOnceEntry(TextMenu menu, bool _)
+    {
+        if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanNotModifyValues))
+        {
+            var unit = new TextMenu.Option<string>(Dialog.Clean("ILHookDebugger_Settings_BreakOnce"));
+            menu.Add(unit);
+            unit.Add(Dialog.Clean("options_on"), "", true);
+            unit.AddDescription(menu, Dialog.Clean("ILHookDebugger_Settings_BreakOnce_Help_Disabled"));
+        }
+        else
+        {
+            var unit = new TextMenu.OnOff(Dialog.Clean("ILHookDebugger_Settings_BreakOnce"), BreakOnce);
+            unit.OnValueChange += val =>
+            {
+                BreakOnce = val;
+            };
+            menu.Add(unit);
+            unit.AddDescription(menu, Dialog.Clean("ILHookDebugger_Settings_BreakOnce_Help"));
         }
     }
     public void CreateMappingUtilsIntegrationEntry(TextMenu menu, bool _)

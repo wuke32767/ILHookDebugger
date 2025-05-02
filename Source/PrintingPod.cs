@@ -243,7 +243,7 @@ namespace Celeste.Mod.ILHookDebugger
                     ic.EmitLdfld(StrongBoxValue);
                 }
                 ic.EmitBrtrue(breaking);
-                if (ILHookDebuggerModule.BreakOnce)
+                if (ILHookDebuggerModule.BreakOnce || ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanNotModifyValues))
                 {
                     if (boxed)
                     {
