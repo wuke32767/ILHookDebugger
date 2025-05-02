@@ -68,6 +68,73 @@ namespace Celeste.Mod.ILHookDebugger
                 var _iact = mdm.ImportReference(typeof(IgnoresAccessChecksToAttribute)).Resolve();
                 var iact = mdm.ImportReference(_iact.GetConstructors().First());
 
+                ModuleDefinition? foundModule = null;
+                Relinker findClone = (mtp, ctx) =>
+                {
+                    foundModule ??= mtp switch
+                    {
+                        MemberReference mr => mr.Module,
+                        _ => null,
+                    };
+                    if (foundModule == mdm)
+                    {
+                        foundModule = null;
+                    }
+                    return mtp;
+                };
+                Relinker relink = (mtp, ctx) =>
+                {
+                    if (mtp is MethodReference mr)
+                    {
+                        if (mr.Is(mi) || mr == md)
+                            return md!;
+                    }
+                    return mdm.ImportReference(mtp);
+                };
+                void Run(Relinker relinker)
+                {
+                    var def = md;
+                    var clone = md;
+                    foreach (var param in def.Parameters)
+                    {
+                        param.ParameterType = param.ParameterType.Relink(relinker, clone);
+                    }
+
+                    clone.ReturnType = def.ReturnType.Relink(relinker, clone);
+
+                    var body = def.Body;
+
+                    foreach (var var in clone.Body.Variables)
+                    {
+                        var.VariableType = var.VariableType.Relink(relinker, clone);
+                    }
+
+                    foreach (var handler in clone.Body.ExceptionHandlers)
+                    {
+                        if (handler.CatchType != null)
+                            handler.CatchType = handler.CatchType.Relink(relinker, clone);
+                    }
+
+                    foreach (var instr in body.Instructions)
+                    {
+                        var operand = instr.Operand;
+
+                        // Import references.
+                        if (operand is IMetadataTokenProvider mtp && operand is not ParameterDefinition)
+                        {
+                            operand = mtp.Relink(relinker, clone);
+                        }
+
+                        instr.Operand = operand;
+                    }
+                }
+                Run(findClone);
+                if (foundModule is not null)
+                {
+                    mdm.AssemblyReferences.AddRange(foundModule.AssemblyReferences);
+                    Run(relink);
+                }
+
                 FieldDefinition shouldBreak = new("ShouldNotBreak_YouCanChangeThisFromYourIDEDebugger", Mono.Cecil.FieldAttributes.Static, mdm.TypeSystem.Boolean);
                 dmdtype.Fields.Add(shouldBreak);
                 FieldDefinition slots = new("_slot", Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, il.Import(typeof(object[])));
