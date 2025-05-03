@@ -263,7 +263,25 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 ImGui.SameLine();
                 ImGui.Checkbox("overwrite", ref overwrite);
                 ImGui.SameLine();
-                ImGui.InputText("Path", dumpPath, 512);
+                unsafe
+                {
+                    GCHandle? handle = null;
+                    ImGui.InputText("Path", dumpPath, (uint)dumpPath.Length, ImGuiInputTextFlags.CallbackResize, data =>
+                    {
+                        if (data->EventFlag == ImGuiInputTextFlags.CallbackResize)
+                        {
+                            Array.Resize(ref dumpPath, dumpPath.Length * 2);
+                            handle = GCHandle.Alloc(dumpPath, GCHandleType.Pinned);
+                            fixed (byte* c = dumpPath)
+                            {
+                                data->Buf = c;
+                            }
+                            data->BufSize = dumpPath.Length;
+                        }
+                        return 0;
+                    });
+                    handle?.Free();
+                }
 
                 var enums = Enum.GetNames<Compatibility>();
                 int curi = (int)ILHookDebuggerModule.IDE.Value;
