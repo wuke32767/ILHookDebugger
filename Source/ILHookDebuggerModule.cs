@@ -73,7 +73,7 @@ public class ILHookDebuggerModule : EverestModule
         }
         ImGuiManager.Handlers.Add(MiGui.Instance);
         AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
-        OnMonoMod();
+        DetourManager.ILHookApplied += OnHookApply;
         //AutoRefresh.Value = Settings?.AutoRefresh ?? false;
         //HookMonoModInternal.Value = Settings?.HookMonoModInternal ?? false;
         //UnloadWhenDetached.Value = Settings?.UnloadWhenDetached ?? false;
@@ -91,6 +91,8 @@ public class ILHookDebuggerModule : EverestModule
 
     public override void Unload()
     {
+        DetourManager.ILHookApplied -= OnHookApply;
+
         ImGuiManager.Handlers.Remove(MiGui.Instance);
         PrintingPod.Clear();
         IgnoreDebugger();
@@ -103,22 +105,19 @@ public class ILHookDebuggerModule : EverestModule
 
     static ILHook? MonoModCriminal;
 
-    public static void OnMonoMod()
+    static void OnHookApply(ILHookInfo info)
     {
-        DetourManager.ILHookApplied += info =>
+        if (info.ManipulatorMethod.Module != typeof(ILHookDebuggerModule).Module
+            && PrintingPod.DuplicantLookup.ContainsKey(info.Method.Method))
         {
-            if (info.ManipulatorMethod.Module != typeof(ILHookDebuggerModule).Module
-                && PrintingPod.DuplicantLookup.ContainsKey(info.Method.Method))
+            if (Engine.Scene is not null)
             {
-                if (Engine.Scene is not null)
-                {
-                    Engine.Scene.OnEndOfFrame += () =>
+                Engine.Scene.OnEndOfFrame += () =>
                 {
                     PrintingPod.Refresh(info.Method.Method);
                 };
-                }
             }
-        };
+        }
     }
 
 
