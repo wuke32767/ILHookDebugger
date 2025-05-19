@@ -266,18 +266,11 @@ namespace Celeste.Mod.ILHookDebugger
                 md.Name = mi.Name;
                 dmdtype.BaseType = mdm.TypeSystem.Object;
                 dmdtype.Namespace = mi.DeclaringType?.Namespace;
-                if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName))
-                {
-                    dmdtype.Name = $"{nameof(ILHookDebugger)}_Type_{unique}_{mi.DeclaringType?.Name ?? "_Module"}";
-                    mdm.Name = $"{nameof(ILHookDebugger)}_Module_{unique}";
-                    asm.Name.Name = $"{(nameof(ILHookDebugger))}_Asm_{unique}";
-                }
-                else
-                {
-                    dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType?.Name ?? "<Module>"}";
-                    mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}";
-                    asm.Name.Name = $"{(nameof(ILHookDebugger))}#Asm#{unique}";
-                }
+
+                dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType?.Name ?? "<Module>"}".Simplify();
+                mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}".Simplify();
+                asm.Name.Name = $"{nameof(ILHookDebugger)}#Asm#{unique}".Simplify();
+
                 il.Steal(localslots, slots);
                 il.Prettify();
 

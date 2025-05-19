@@ -13,21 +13,46 @@ namespace Celeste.Mod.ILHookDebugger
 {
     public static partial class MonoModPrettify
     {
+        static Dictionary<char, char> advancedConvertor = new(){
+            {'>','フ'},
+            {'<','く'},
+            {'@','の'},
+            {'!','丨'},
+            {'#','井'},
+            {'+','十'},
+            {'|','丨'},
+            {')','つ'},
+            {'(','Ｃ'},
+            {'^','ヘ'},
+            {'=','二'},
+            {'$','弔'},
+        };
+        static Dictionary<char, char> basicConvertor = """~!@#$%^&*()_+`-=[]\{}|;':",./<>?""".ToDictionary(x => x, _ => '_');
+        public static string Simplify(this string name)
+        {
+            if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName))
+            {
+                var m = ILHookDebuggerModule.TextConvertor ? advancedConvertor : basicConvertor;
+                return string.Concat(name.Select(x => m.TryGetValue(x, out var c) ? c : x));
+            }
+            else
+            {
+                return name;
+            }
+        }
         public static Dictionary<string, string> Names = [];
         public static string ModName(MethodInfo ins)
         {
             var name = ins.Name;
-            var split = ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName)
-                ? "_" : "@";
             if (MatchLambda().Match(name) is { Success: true } lam)
             {
-                name = $"{lam.Groups["in"]}{split}lam";
+                name = $"{lam.Groups["in"]}{"@"}lam";
             }
             else if (MatchLocalFunc().Match(name) is { Success: true } loc)
             {
                 name = $"{loc.Groups["in"]}{loc.Groups["id"]}{loc.Groups["name"]}";
             }
-            return name + split + GetShortModName(ins);
+            return (name + "@" + GetShortModName(ins)).Simplify();
 
             static string GetShortModName(MethodInfo ins)
             {
@@ -47,9 +72,7 @@ namespace Celeste.Mod.ILHookDebugger
                     }));
                     return l;
                 }
-                return ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName)
-                    ? "NoModule"
-                    : "!NoModule";
+                return "!NoModule";
             }
         }
         static MethodInfo GetValueTUnsafeT =
@@ -107,32 +130,18 @@ namespace Celeste.Mod.ILHookDebugger
                 var stored = GetValueTUnsafeT.MakeGenericMethod(storedType.ResolveReflection()).Invoke(null, [index, hash]);
 
                 string name;
-                if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName))
+
+                name = $"@{unique++}_{stored switch
                 {
-                    name = $"Reference_{unique++}_{stored switch
+                    Delegate d => d.GetInvocationList() switch
                     {
-                        Delegate d => d.GetInvocationList() switch
-                        {
-                            [var s] => ModName(s.Method),
-                            [] => "_Empty",
-                            [var s, ..] => ModName(s.Method) + "_AndMore",
-                        },
-                        _ => stored?.ToString() ?? "__null",
-                    }}";
-                }
-                else
-                {
-                    name = $"@{unique++}_{stored switch
-                    {
-                        Delegate d => d.GetInvocationList() switch
-                        {
-                            [var s] => ModName(s.Method),
-                            [] => "!Empty",
-                            [var s, ..] => ModName(s.Method) + "#AndMore",
-                        },
-                        _ => stored?.ToString() ?? "!!null",
-                    }}";
-                }
+                        [var s] => ModName(s.Method),
+                        [] => "!Empty",
+                        [var s, ..] => ModName(s.Method) + "#AndMore",
+                    },
+                    _ => stored?.ToString() ?? "!!null",
+                }}".Simplify();
+
                 var md = new MethodDefinition(name, Mono.Cecil.MethodAttributes.Static, storedType);
 
                 var target = new ILCursor(new ILContext(md));

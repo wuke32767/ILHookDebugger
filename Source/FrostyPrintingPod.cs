@@ -123,6 +123,14 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_PrettifyMonoMod_Help", lang));
                 ImGui.SameLine();
 
+                cur = ILHookDebuggerModule.TextConvertor;
+                if (ImGui.Checkbox("Another Symbol Convertor", ref cur))
+                {
+                    ILHookDebuggerModule.TextConvertor.Value = cur;
+                }
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_Convertor_Help", lang));
+                ImGui.SameLine();
+
                 cur = ILHookDebuggerModule.UnloadWhenDetached;
                 if (ImGui.Checkbox("Unload When Detached", ref cur))
                 {

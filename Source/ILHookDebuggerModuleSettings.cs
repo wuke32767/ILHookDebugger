@@ -49,6 +49,14 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
             ILHookDebuggerModule.IDE.Value = value;
         }
     }
+    public bool UseConvertor
+    {
+        get => ILHookDebuggerModule.TextConvertor;
+        set
+        {
+            ILHookDebuggerModule.TextConvertor.Value = value;
+        }
+    }
     public bool MappingUtilsIntegration
     {
         get => ILHookDebuggerModule.MappingUtilsIntegration;
@@ -75,6 +83,19 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
             };
             menu.Add(unit);
             unit.AddDescription(menu, Dialog.Clean("ILHookDebugger_Settings_BreakOnce_Help"));
+        }
+    }
+    public void CreateUseConvertorEntry(TextMenu menu, bool _)
+    {
+        if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName))
+        {
+            var unit = new TextMenu.OnOff(Dialog.Clean("ILHookDebugger_Settings_Convertor"), MappingUtilsIntegration);
+            unit.OnValueChange += val =>
+            {
+                UseConvertor = val;
+            };
+            menu.Add(unit);
+            unit.AddDescription(menu, Dialog.Clean("ILHookDebugger_Settings_Convertor_Help"));
         }
     }
     public void CreateMappingUtilsIntegrationEntry(TextMenu menu, bool _)

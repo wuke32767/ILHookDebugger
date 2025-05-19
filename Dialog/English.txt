@@ -40,3 +40,9 @@ can slightly improve your debugging experience.
 
 ILHookDebugger_Settings_BreakOnce_Help_Disabled=
 I would suggest you to enable it, or your ide will always trigger the breakpoint.
+
+ILHookDebugger_Settings_Convertor=
+Another Symbol Convertor
+ILHookDebugger_Settings_Convertor_Help=
+Convert symbols to shape proximity charactor.
+Sometimes looks strange.

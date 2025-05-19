@@ -28,3 +28,8 @@ Rider 用户必须选择 Rider，否则无法调试。
 ILHookDebugger_Settings_BreakOnce_Help_Disabled=
 推荐你开启，不要不识好歹（
 关闭后你可能无法阻止断点被激活。
+
+ILHookDebugger_Settings_Convertor=
+另一种符号转换方式
+ILHookDebugger_Settings_Convertor_Help=
+用形近字代替符号。可能有时候看起来很奇怪。

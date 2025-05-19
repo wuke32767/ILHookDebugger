@@ -200,6 +200,7 @@ public class ILHookDebuggerModule : EverestModule
     });
 
     public static Swapping BreakOnce = new(i => i, i => PrintingPod.Refresh());
+    public static Swapping TextConvertor = new(i => i, i => PrintingPod.Refresh());
     public static Swapping PrettifyMonoMod = new(i => i, i => PrintingPod.Refresh());
 
     private static void Engine_Update(On.Monocle.Engine.orig_Update orig, Monocle.Engine self, Microsoft.Xna.Framework.GameTime gameTime)

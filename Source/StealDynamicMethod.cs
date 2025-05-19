@@ -19,7 +19,7 @@ namespace Celeste.Mod.ILHookDebugger
     using System.Threading.Tasks;
     static internal class StealDynamicMethod
     {
-        public static string Prefix => ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName) ? "ILHDStolen_" : "#ILHDStolen#";
+        public static string Prefix => "#ILHDStolen#";
         public static string MMPrefix => Prefix;
         public static void Steal(this ILContext il, List<object> localslots, FieldDefinition slots)
         {
@@ -32,8 +32,7 @@ namespace Celeste.Mod.ILHookDebugger
                 dm ??= (ic.Next.Operand as DynamicMethodReference)?.DynamicMethod as DynamicMethod;
                 if (dm is not null)
                 {
-                    string V = ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName) ? "_" : "#";
-                    var def = new MethodDefinition(MMPrefix + localslots.Count + V + dm.Name,
+                    var def = new MethodDefinition((MMPrefix + localslots.Count + "#" + dm.Name).Simplify(),
                                     Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Static,
                                     il.Import(dm.ReturnType ?? typeof(void)));
                     def.Parameters.AddRange(dm.GetParameters().Select(x => new ParameterDefinition(il.Import(x.ParameterType))));
@@ -91,7 +90,7 @@ namespace Celeste.Mod.ILHookDebugger
             static TypeDefinition MakeDelegate(MethodDefinition def)
             {
                 ModuleDefinition module = def.Module;
-                var deletype = new TypeDefinition("", "ILHookDebugger#Type#Delegate" + def.Name,
+                var deletype = new TypeDefinition("", ("ILHookDebugger#Type#Delegate" + def.Name).Simplify(),
                     Mono.Cecil.TypeAttributes.Public | Mono.Cecil.TypeAttributes.Sealed | Mono.Cecil.TypeAttributes.Class,
                     module.ImportReference(typeof(MulticastDelegate)));
                 var delector = new MethodDefinition(
