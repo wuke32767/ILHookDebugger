@@ -78,6 +78,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
         public bool overwrite = false;
         public void RenderCore()
         {
+            // ImGuiHelper don't support any cjk characters.
             if (exception is not null)
             {
                 ImGui.Text("Encounter an error. Check logs.");

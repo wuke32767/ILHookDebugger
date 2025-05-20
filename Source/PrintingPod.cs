@@ -143,7 +143,9 @@ namespace Celeste.Mod.ILHookDebugger
 
                 int unique = System.Threading.Interlocked.Increment(ref PrintingPod.unique);
                 var md = il.Method;
+                // do not change the value of any instrs, or the backup can be broken
                 var backup = il.Instrs.ToArray();
+                // also backup the labels so that i can use moveafterlabels
                 var lackup = il.Labels.Select(x => x.Target).ToArray();
                 var dmdtype = md.DeclaringType;
                 var mdm = md.Module;
