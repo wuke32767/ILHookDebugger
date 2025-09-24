@@ -84,7 +84,10 @@ namespace Celeste.Mod.ILHookDebugger
                     ic.Emit(ic.Next.OpCode, def);
                     ic.Remove();
                 }
-                ic.Index++;
+                else
+                {
+                    ic.Index++;
+                }
             }
 
             static TypeDefinition MakeDelegate(MethodDefinition def)
