@@ -28,6 +28,7 @@ public enum IDEFeatures
     RequiresFileAssembly = 1 << 2,
     CanOnlyModifyRefValues = 1 << 3,
     CanNotModifyValues = 1 << 4,
+    CanDebuggerLaunchButNotDefault = (1 << 5) | CanDebuggerLaunch,
 }
 
 public class ILHookDebuggerModule : EverestModule
@@ -155,7 +156,7 @@ public class ILHookDebuggerModule : EverestModule
             Compatibility.Rider =>
                 IDEFeatures.NormalizeName |
                 IDEFeatures.RequiresFileAssembly |
-                IDEFeatures.CanOnlyModifyRefValues,
+                IDEFeatures.CanDebuggerLaunchButNotDefault,
             Compatibility.dnSpy =>
                 IDEFeatures.CanNotModifyValues,
             _ =>

@@ -46,3 +46,6 @@ Another Symbol Convertor
 ILHookDebugger_Settings_Convertor_Help=
 Convert symbols to shape proximity charactor.
 Sometimes looks strange.
+
+ILHookDebugger_Help_LaunchNeedConfigure=
+Make sure you have set your IDE to default Just-In-Time Debugger.

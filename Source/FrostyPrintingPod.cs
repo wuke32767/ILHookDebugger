@@ -162,6 +162,10 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     {
                         System.Diagnostics.Debugger.Launch();
                     }
+                    if(ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanDebuggerLaunchButNotDefault))
+                    {
+                        ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_LaunchNeedConfigure", lang));
+                    }
                 }
 
                 ImGui.Text("");
