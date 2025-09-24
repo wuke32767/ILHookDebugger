@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <AssemblyName>ILHookDebugger</AssemblyName>
         <RootNamespace>Celeste.Mod.ILHookDebugger</RootNamespace>
       <Nullable>enable</Nullable>
@@ -18,8 +18,9 @@
     </ItemDefinitionGroup>
 
     <ItemGroup>
-        <PackageReference Include="MonoMod.RuntimeDetour" Version="25.0.2" PrivateAssets="all" ExcludeAssets="runtime" />
-        <PackageReference Include="MonoMod.Patcher" Version="25.0.0-prerelease.2" />
+        <PackageReference Include="MonoMod.RuntimeDetour" Version="25.2.3" PrivateAssets="all" ExcludeAssets="runtime">
+          <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="CelesteAnalyzer" Version="*" />
     </ItemGroup>
 
