@@ -1,18 +1,28 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
+﻿using Celeste.Mod.ImGuiHelper;
 using ImGuiNET;
-using System.Linq;
-using MonoMod.RuntimeDetour;
-using System.Collections;
-using Monocle;
-using Celeste.Mod.ImGuiHelper;
 using Microsoft.Xna.Framework;
-using System.Runtime.InteropServices;
+using Monocle;
+using MonoMod.RuntimeDetour;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 
 namespace Celeste.Mod.ILHookDebugger.MappingUtils
 {
+    file class not_not
+    {
+        internal static void Launch()
+        {
+            Task.Run(Debugger.Launch);
+        }
+    }
+
     public class FrostyPrintingPod : Mod.MappingUtils.ImGuiHandlers.Tab
     {
         private MethodBase? _selectedMethod;
@@ -150,7 +160,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 {
                     PrintingPod.Refresh();
                 }
-                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_RefreshIsAllYouNeed", Dialog.Languages["english"]));
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_RefreshIsAllYouNeed", lang));
 
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
                     && ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanDebuggerLaunch))
@@ -160,7 +170,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     //windows only
                     if (ImGui.Button("Launch IDE Debugger"))
                     {
-                        System.Diagnostics.Debugger.Launch();
+                        not_not.Launch();
                     }
                     if(ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanDebuggerLaunchButNotDefault))
                     {
@@ -169,6 +179,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 }
 
                 ImGui.Text("");
+                ImGui.Separator();
 
                 if (ImGui.BeginTable("Search..", 1,
                     ImGuiTableFlags.BordersV | ImGuiTableFlags.BordersOuterH |
@@ -266,13 +277,14 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 }
 
                 ImGui.Text("");
+                ImGui.Separator();
 
                 if (ImGui.Button("Dump"))
                 {
                     var count = dumpPath.TakeWhile(x => x != 0).Count();
                     PrintingPod.Dump(System.Text.Encoding.UTF8.GetString(dumpPath, 0, count), overwrite);
                 }
-                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_WhatIsDump", Dialog.Languages["english"]));
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_WhatIsDump", lang));
                 ImGui.SameLine();
                 ImGui.Checkbox("overwrite", ref overwrite);
                 ImGui.SameLine();
