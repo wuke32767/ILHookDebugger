@@ -4,6 +4,8 @@ namespace Celeste.Mod.ILHookDebugger;
 
 public class ILHookDebuggerModuleSettings : EverestModuleSettings
 {
+    private bool mappingUtilsIntegration;
+
     [DefaultButtonBinding(0, 0)]
     public ButtonBinding PanelKey { get; set; } = null!;
 
@@ -59,10 +61,11 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
     }
     public bool MappingUtilsIntegration
     {
-        get => ILHookDebuggerModule.MappingUtilsIntegration;
+        get => mappingUtilsIntegration;
         set
         {
-            ILHookDebuggerModule.MappingUtilsIntegration.Value = value;
+            mappingUtilsIntegration = value;
+            ILHookDebuggerModule.Instance.DoMappingUtils();
         }
     }
     public void CreateBreakOnceEntry(TextMenu menu, bool _)
@@ -100,7 +103,7 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
     }
     public void CreateMappingUtilsIntegrationEntry(TextMenu menu, bool _)
     {
-        if (ILHookDebuggerModule.CheckMappingUtils.Value)
+        if (MappingUtils.MappingUtilsTabs.IsImported)
         {
             var unit = new TextMenu.OnOff(Dialog.Clean("ILHookDebugger_Settings_MappingUtilsIntegration"), MappingUtilsIntegration);
             unit.OnValueChange += val =>

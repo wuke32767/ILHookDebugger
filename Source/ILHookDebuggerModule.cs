@@ -1,6 +1,5 @@
 ﻿using Celeste.Mod.ILHookDebugger.MappingUtils;
 using Celeste.Mod.ImGuiHelper;
-using Celeste.Mod.MappingUtils.ImGuiHandlers;
 using Monocle;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
@@ -75,6 +74,8 @@ public class ILHookDebuggerModule : EverestModule
         ImGuiManager.Handlers.Add(MiGui.Instance);
         AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
         DetourManager.ILHookApplied += OnHookApply;
+        MappingUtilsTabs.Load();
+        DoMappingUtils();
         //AutoRefresh.Value = Settings?.AutoRefresh ?? false;
         //HookMonoModInternal.Value = Settings?.HookMonoModInternal ?? false;
         //UnloadWhenDetached.Value = Settings?.UnloadWhenDetached ?? false;
@@ -82,6 +83,18 @@ public class ILHookDebuggerModule : EverestModule
 
         // TODO: apply any hooks that should always be active
     }
+
+    internal void DoMappingUtils()
+    {
+        if (MappingUtilsTabs.IsImported && !doneMappingUtils &&Settings.MappingUtilsIntegration)
+        {
+            MappingUtilsTabs.RegisterTab("ILHookDebug", "ILHookDebug", MiGui.Instance.RenderCore, () => true, null, null);
+            doneMappingUtils = true;
+        }
+    }
+
+    bool doneMappingUtils = false;
+
 
     private void CurrentDomain_ProcessExit(object? sender, EventArgs e)
     {
@@ -98,7 +111,6 @@ public class ILHookDebuggerModule : EverestModule
         PrintingPod.Clear();
         IgnoreDebugger();
         AppDomain.CurrentDomain.ProcessExit -= CurrentDomain_ProcessExit;
-        UnIntegrate();
         GC.Collect();
         PrintingPod.Guardian.Clear();
         // TODO: unapply any hooks applied in Load()
@@ -130,21 +142,7 @@ public class ILHookDebuggerModule : EverestModule
     {
         On.Monocle.Engine.Update -= Engine_Update;
     }
-    internal static Lazy<bool> CheckMappingUtils = new(() =>
-    {
-        if (Instance!.Metadata.OptionalDependencies.Any(i => i.Name == "MappingUtils"))
-        {
-            if (Everest.Loader.TryGetDependency(new() { Name = "MappingUtils", Version = new(1, 0, 0) }, out var result))
-            {
-                // <=
-                if (Everest.Loader.VersionSatisfiesDependency(result.Metadata.Version, new Version(1, 9, 0)))
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    });
+    
     public static IDEFeatures CurrentFeature;
     internal static OnChanged<Compatibility> IDE = new(_ => { }, o =>
     {
@@ -166,30 +164,6 @@ public class ILHookDebuggerModule : EverestModule
     });
     // mappingutils can be not loaded
     static object? toremove;
-    public static Swapping MappingUtilsIntegration = new(() =>
-    {
-        if (CheckMappingUtils.Value)
-        {
-            extract();
-            static void extract()
-            {
-                MainMappingUtils.Tabs.Add((Tab)(toremove = new FrostyPrintingPod()));
-            }
-        }
-
-    }, UnIntegrate);
-    static void UnIntegrate()
-    {
-        if (toremove is not null)
-        {
-            extract();
-            static void extract()
-            {
-                MainMappingUtils.Tabs.Remove((Tab)toremove!);
-            }
-        }
-        toremove = null;
-    }
     static Swapping DebuggerAttached = new(() =>
     {
     }, () =>

@@ -3,7 +3,6 @@ ILHookDebugger_Settings_UnloadWhenDetached_Help= 将在停止调试（或者叫�
 ILHookDebugger_Settings_MappingUtilsIntegration= 集成进 MappingUtils
 ILHookDebugger_Settings_MappingUtilsIntegration_Help=
 你将可以在 Mapping Utils 中使用本 mod 的 UI 。
-依赖于 0.2.0 ~ 0.9.0，如果版本不符合将不会生效。
 适合那些想一键展开工作区的人。
 
 没有 Mapping Utils 的仍可以绑一个按键打开 UI 。

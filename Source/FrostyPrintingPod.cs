@@ -1,6 +1,7 @@
 ﻿using Celeste.Mod.ImGuiHelper;
 using ImGuiNET;
 using Microsoft.Xna.Framework;
+using ModInteropImportGenerator;
 using Monocle;
 using MonoMod.RuntimeDetour;
 using System;
@@ -23,18 +24,11 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
         }
     }
 
-    public class FrostyPrintingPod : Mod.MappingUtils.ImGuiHandlers.Tab
+    [GenerateImports("MappingUtils.Tabs")]
+    public static partial class MappingUtilsTabs
     {
-        private MethodBase? _selectedMethod;
-
-        public override string Name => "ILHookDebugger";
-
-        public override bool CanBeVisible() => true;
-
-        public override void Render(Level? level)
-        {
-            MiGui.Instance?.RenderCore();
-        }
+        public static partial void RegisterTab(string modName, string tabName, Action renderImGui, Func<bool> canBeVisible,
+            Action? onOpen, Action? onClose);
     }
 
     public class MiGui : ImGuiHandler
