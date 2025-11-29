@@ -33,7 +33,7 @@ namespace Celeste.Mod.ILHookDebugger
             }
             var mod = context.ModuleMeta.Name;
 
-            return LoadFile(Path.Combine(Everest.PathGame, "Mods", "Cache", $"{mod}.{reference.Name}.dll"));
+            return LoadFile(Path.Combine(Everest.Loader.PathCache, $"{mod}.{reference.Name}.dll"));
 
             static MetadataFile? LoadFile(string dll)
             {
