@@ -1,14 +1,24 @@
-﻿using System;
+﻿using Celeste.Mod.Helpers;
+using ICSharpCode.Decompiler.CSharp.OutputVisitor;
+using ICSharpCode.Decompiler.CSharp.Syntax;
+using Microsoft.Xna.Framework;
+using Monocle;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using Celeste.Mod.Helpers;
-using Monocle;
 
 namespace Celeste.Mod.ILHookDebugger
 {
+    public static class Soncole
+    {
+        // bypass bananawatch consolewriteline
+        public static Action<string> WriteLine = typeof(Console).GetMethod("WriteLine", [typeof(string)])!.CreateDelegate<Action<string>>();
+        public static Action<string> Write = typeof(Console).GetMethod("Write", [typeof(string)])!.CreateDelegate<Action<string>>();
+    }
     public static class Commands
     {
         [Command("ILDebug", """
@@ -73,6 +83,32 @@ namespace Celeste.Mod.ILHookDebugger
         public static void InsertDebugger(MethodInfo method)
         {
             PrintingPod.Create(method);
+        }
+
+        [Command("ILDebug_Decompile", """
+            Decompile a method.
+            Must install extension: Decompiler.
+            Or install MappingUtils.
+            """)]
+        public static void Decompile(string fullTypeName, string method, bool modded = false)
+        {
+            var (loaded, from) = ILHookDebuggerModule.CheckDecompiler.Value;
+            if (!loaded)
+            {
+                Engine.Commands.Log("no decompiler found");
+                return;
+            }
+            var target = GetMethod(fullTypeName, method, modded);
+            Extract(target!, from);
+            static void Extract(MethodInfo target, string from)
+            {
+                Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
+                var (ast, decomp) = Decompilation.FromMethod(target);
+                var w = new MyTokenWriter(new MulticastTextWriter(Console.Out, new MonocleTextWriter()), decomp.TypeSystem, ILHookDebuggerModule.PaletteForConsole());
+                ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateMono()));
+                Engine.Commands.Log("there's a colorful copy in your console.\n(and a colorless copy in your log.)", Color.Yellow);
+            }
+            GC.Collect(2);
         }
     }
 }

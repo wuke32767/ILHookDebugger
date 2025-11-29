@@ -1,4 +1,9 @@
 ﻿using Celeste.Mod.ImGuiHelper;
+using Celeste.Mod.MappingUtils.Helpers;
+using ICSharpCode.Decompiler.CSharp.OutputVisitor;
+using ICSharpCode.Decompiler.CSharp.Syntax;
+using ICSharpCode.Decompiler.IL;
+using ImGuiColorTextEditNet;
 using ImGuiNET;
 using Microsoft.Xna.Framework;
 using Monocle;
@@ -6,6 +11,7 @@ using MonoMod.RuntimeDetour;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -58,7 +64,53 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
 
         byte[] searchText = new byte[512];
         byte[] dumpPath = new byte[512];
+        object dumpobj => dumpPath;
         readonly List<(string name, MethodBase method)> searchResult = [];
+        Stopwatch watch = new();
+        object? watching;
+        void See(object ins)
+        {
+            watching = ins;
+            watch.Reset();
+            watch.Start();
+        }
+        bool Look(object ins)
+        {
+            if (ins == watching && watch.ElapsedMilliseconds < 1000)
+            {
+                return true;
+            }
+            return false;
+        }
+        List<(string name, object content, int id)> decompiled = [];
+        static object CreateEditor(SyntaxTree content, ICSharpCode.Decompiler.CSharp.CSharpDecompiler decomp)
+        {
+            if (ILHookDebuggerModule.Settings.UseTextEditor && ILHookDebuggerModule.CheckEditor.Value.Item1)
+            {
+                static object Extract(SyntaxTree content, ICSharpCode.Decompiler.CSharp.CSharpDecompiler decomp)
+                {
+                    ExternalCustomEditorColor color = new();
+                    using EditorTextWriter<PaletteIndex> o = new() { Palette = color, };
+                    var w = new MyTokenWriter(o, decomp.TypeSystem, color);
+                    content.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
+
+                    var r = new TextEditor() { AllText = o.str.ToString(), SyntaxHighlighter = new SyntaxTreeHighlighter(o.colors), Options = { IsReadOnly = true } };
+                    ExternalCustomEditorColor.InjectColor(r);
+                    return r;
+                }
+                return Extract(content, decomp);
+            }
+            else
+            {
+                EditorColor color = new();
+                using EditorTextWriter<Color> o = new() { Palette = color, };
+                var w = new MyTokenWriter(o, decomp.TypeSystem, color);
+                content.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
+                var str = o.str.ToString();
+
+                return new MinimalDisplayer(str.Split('\n'), o.colors);
+            }
+        }
 
         public override void Render()
         {
@@ -83,6 +135,41 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     ImGui.End();
                 }
             }
+            int remove = -1;
+            foreach (var ((name, content, id), index) in decompiled.Select((x, i) => (x, i)))
+            {
+                bool open = true;
+                ImGui.SetNextWindowSize(new(150 * 2.5f, ImGui.GetMainViewport().Size.Y / 4), ImGuiCond.FirstUseEver);
+                if (ImGui.Begin($"{name}##ILHookDebugger{id}", ref open, ImGuiWindowFlags.HorizontalScrollbar))
+                {
+                    if (ILHookDebuggerModule.CheckEditor.Value.Item1)
+                    {
+                        Extract(content);
+                        static void Extract(object content)
+                        {
+                            if (content is TextEditor editor)
+                            {
+                                editor.Render("");
+                            }
+                        }
+                    }
+                    if (content is MinimalDisplayer displayer)
+                    {
+                        displayer.Render();
+                    }
+
+                    ImGui.End();
+                }
+                if (!open)
+                {
+                    remove = index;
+                }
+            }
+            if (remove >= 0)
+            {
+                decompiled.RemoveAt(remove);
+            }
+
         }
         public bool Display = false;
         public bool overwrite = false;
@@ -91,7 +178,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             // ImGuiHelper don't support any cjk characters.
             if (exception is not null)
             {
-                ImGui.Text("Encounter an error. Check logs.");
+                ImGui.Text("Encounter an error. Please report.");
                 if (ImGui.Button("ok"))
                 {
                     exception = null;
@@ -148,12 +235,55 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     ILHookDebuggerModule.UnloadWhenDetached.Value = cur;
                 }
                 ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_UnloadWhenDetached_Help", lang));
-                ImGui.SameLine();
+                var (hasEd, src) = ILHookDebuggerModule.CheckEditor.Value;
+                var (hasdecom, fromd) = ILHookDebuggerModule.CheckDecompiler.Value;
+
+                if (hasdecom)
+                {
+                    cur = ILHookDebuggerModule.Settings.OpenInEditor;
+                    if (ImGui.Checkbox("Use In-Game Decompile Displayer", ref cur))
+                    {
+                        ILHookDebuggerModule.Settings.OpenInEditor = cur;
+                    }
+                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Displayer", lang));
+                    ImGui.SameLine();
+
+                    if (cur)
+                    {
+                        ImGui.BeginDisabled(!hasEd);
+                        cur = ILHookDebuggerModule.Settings.UseTextEditor;
+                        if (ImGui.Checkbox("Use Text Editor", ref cur))
+                        {
+                            ILHookDebuggerModule.Settings.UseTextEditor = cur;
+                        }
+                        ImGui.EndDisabled();
+                        if (hasEd)
+                        {
+                            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Editor", lang) + "\n" + Dialog.Clean("ILHookDebugger_Help_Editor_True", lang) + src);
+                        }
+                        else
+                        {
+                            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Editor", lang));
+                        }
+                    }
+                    //ImGui.SameLine();
+                    else
+                    {
+                        cur = ILHookDebuggerModule.Settings.ColorfulConsole;
+                        if (ImGui.Checkbox("Use Colorful Console", ref cur))
+                        {
+                            ILHookDebuggerModule.Settings.ColorfulConsole = cur;
+                        }
+                        ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_ConsoleColor_Help", lang));
+                    }
+                }
+
                 if (ImGui.Button("Save Settings"))
                 {
                     ILHookDebuggerModule.Instance.SaveSettings();
                 }
 
+                ImGui.SameLine();
 
 
                 if (ImGui.Button("Refresh"))
@@ -172,7 +302,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     {
                         not_not.Launch();
                     }
-                    if(ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanDebuggerLaunchButNotDefault))
+                    if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanDebuggerLaunchButNotDefault))
                     {
                         ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_LaunchNeedConfigure", lang));
                     }
@@ -181,7 +311,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 ImGui.Text("");
                 ImGui.Separator();
 
-                if (ImGui.BeginTable("Search..", 1,
+                if (ImGui.BeginTable("Search..", 2,
                     ImGuiTableFlags.BordersV | ImGuiTableFlags.BordersOuterH |
                     ImGuiTableFlags.Resizable | ImGuiTableFlags.RowBg |
                     ImGuiTableFlags.NoBordersInBody | ImGuiTableFlags.Hideable |
@@ -224,13 +354,53 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                         searchText[0] = 0;
                         searchResult.Clear();
                     }
+                    ImGui.TableNextColumn();
 
                     foreach (var (na, me) in searchResult)
                     {
                         ImGui.TableNextColumn();
-                        if (ImGui.Selectable(na))
+                        ImGui.Text(na);
+                        ImGui.TableNextColumn();
+                        if (ImGui.Button("Debug##" + na))
                         {
                             PrintingPod.Create(me);
+                        }
+                        ImGui.SetItemTooltip(na);
+                        ImGui.SameLine();
+                        ImGui.BeginDisabled(!hasdecom);
+                        if (ImGui.Button(Look(me) ? "Done" : ("Decompile Only##" + na)))
+                        {
+                            if (ILHookDebuggerModule.Settings.OpenInEditor)
+                            {
+                                Extract(me, fromd);
+                                void Extract(MethodBase target, string from)
+                                {
+                                    Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
+                                    var (ast, decomp) = Decompilation.FromMethod(target);
+                                    decompiled.Add((na, CreateEditor(ast, decomp), decompiled.LastOrDefault().id + 1));
+                                }
+                            }
+                            else
+                            {
+                                Extract(me, fromd);
+                                static void Extract(MethodBase target, string from)
+                                {
+                                    Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
+                                    var (ast, decomp) = Decompilation.FromMethod(target);
+                                    var w = new MyTokenWriter(Console.Out, decomp.TypeSystem, ILHookDebuggerModule.PaletteForConsole());
+                                    ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
+                                }
+                            }
+                            See(me);
+                        }
+                        ImGui.EndDisabled();
+                        if (hasdecom)
+                        {
+                            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Decompiler", lang) + "\n" + Dialog.Clean("ILHookDebugger_Help_Decompiler_True", lang) + fromd);
+                        }
+                        else
+                        {
+                            ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Decompiler", lang));
                         }
                     }
 
@@ -241,7 +411,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
 
                 var flags = PrintingPod.AllDuplicants;
                 toremove.Clear();
-                if (ImGui.BeginTable("Debugging", 1,
+                if (ImGui.BeginTable("Debugging", 2,
                     ImGuiTableFlags.BordersV | ImGuiTableFlags.BordersOuterH |
                     ImGuiTableFlags.Resizable | ImGuiTableFlags.RowBg |
                     ImGuiTableFlags.NoBordersInBody | ImGuiTableFlags.Hideable |
@@ -263,9 +433,47 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                         {
                             ImGui.TableNextColumn();
                             ImGui.SetNextItemWidth(150);
-                            if (ImGui.Selectable(f.Target.GetMethodNameForDB()))
+                            ImGui.Text(f.Target.GetMethodNameForDB());
+                            ImGui.TableNextColumn();
+                            if (ImGui.Button("Remove##" + f.TypeName))
                             {
                                 toremove.Add(f);
+                            }
+                            ImGui.SameLine();
+                            ImGui.BeginDisabled(!hasdecom);
+                            if (ImGui.Button(Look(f) ? "Done" : ("Decompile##" + f.TypeName)))
+                            {
+                                if (ILHookDebuggerModule.Settings.OpenInEditor)
+                                {
+                                    Extract(f, fromd);
+                                    void Extract(Duplicant target, string from)
+                                    {
+                                        Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
+                                        var (ast, decomp) = Decompilation.FromRunning(target);
+                                        decompiled.Add((target.TypeName!, CreateEditor(ast, decomp), decompiled.LastOrDefault().id + 1));
+                                    }
+                                }
+                                else
+                                {
+                                    Extract(f, fromd);
+                                    static void Extract(Duplicant target, string from)
+                                    {
+                                        Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
+                                        var (ast, decomp) = Decompilation.FromRunning(target);
+                                        var w = new MyTokenWriter(Console.Out, decomp.TypeSystem, ILHookDebuggerModule.PaletteForConsole());
+                                        ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
+                                    }
+                                }
+                                See(f);
+                            }
+                            ImGui.EndDisabled();
+                            if (hasdecom)
+                            {
+                                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Decompiler", lang) + "\n" + Dialog.Clean("ILHookDebugger_Help_Decompiler_True", lang) + fromd);
+                            }
+                            else
+                            {
+                                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Decompiler", lang));
                             }
                         }
                     }
@@ -279,10 +487,11 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 ImGui.Text("");
                 ImGui.Separator();
 
-                if (ImGui.Button("Dump"))
+                if (ImGui.Button(Look(dumpobj) ? "Done" : "Dump"))
                 {
                     var count = dumpPath.TakeWhile(x => x != 0).Count();
                     PrintingPod.Dump(System.Text.Encoding.UTF8.GetString(dumpPath, 0, count), overwrite);
+                    See(dumpobj);
                 }
                 ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_WhatIsDump", lang));
                 ImGui.SameLine();
@@ -317,10 +526,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             }
             catch (Exception ex)
             {
-                Logger.Error(nameof(ILHookDebugger), "[MappingUtilsIntegartion]" + (exception = $"""
-                    error.
-                    {ex}
-                    """));
+                Logger.Error(nameof(ILHookDebugger), "[MappingUtilsIntegartion]" + (exception = ex.ToString()));
             }
         }
         public override void Update(GameTime gameTime)

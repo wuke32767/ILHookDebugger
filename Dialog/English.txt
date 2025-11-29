@@ -49,3 +49,28 @@ Sometimes looks strange.
 
 ILHookDebugger_Help_LaunchNeedConfigure=
 Make sure you have set your IDE to default Just-In-Time Debugger.
+
+ILHookDebugger_Help_Displayer=
+Use in-game displayer, instead of console.
+
+ILHookDebugger_Help_Editor=
+Use editor, which is the same as mapping utils, instead of displayer.
+Must install extension: TextEditor,
+or mapping utils.
+
+ILHookDebugger_Help_Editor_True=
+Now using TextEditor from: 
+
+ILHookDebugger_Settings_ConsoleColor=
+Use Colorful Console
+
+ILHookDebugger_Settings_ConsoleColor_Help=
+Not all consoles support 24-bit color, but it's unlikely that you're using one of them.
+The output will also be copied to log.txt which obviously does not support it, so there will be a mess.
+
+ILHookDebugger_Help_Decompiler_True=
+Now using Decompiler from: 
+
+ILHookDebugger_Help_Decompiler=
+Must install extension: Decompiler,
+or mapping utils.

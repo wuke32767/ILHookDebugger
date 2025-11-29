@@ -33,3 +33,10 @@ ILHookDebugger_Settings_Convertor=
 另一种符号转换方式
 ILHookDebugger_Settings_Convertor_Help=
 用形近字代替符号。可能有时候看起来很奇怪。
+
+ILHookDebugger_Settings_ConsoleColor=
+使用全彩控制台
+
+ILHookDebugger_Settings_ConsoleColor_Help=
+并非所有控制台都支持全彩，但现代终端几乎都支持。
+同样会输出到 log.txt，而它不支持全彩输出，因此会有显示错误。

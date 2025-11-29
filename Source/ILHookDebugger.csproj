@@ -18,7 +18,13 @@
     </ItemDefinitionGroup>
 
     <ItemGroup>
-        <PackageReference Include="MonoMod.RuntimeDetour" Version="25.2.3" PrivateAssets="all" ExcludeAssets="runtime">
+        <PackageReference Include="ICSharpCode.Decompiler" Version="9.0.0.7660-preview2">
+          <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <Reference Include="ImGuiColorTextEditNet">
+          <HintPath>./ImGuiColorTextEditNet.dll</HintPath>
+        </Reference>
+        <PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.3" PrivateAssets="all" ExcludeAssets="runtime">
           <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="CelesteAnalyzer" Version="*" />

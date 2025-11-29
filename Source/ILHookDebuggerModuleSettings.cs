@@ -57,6 +57,17 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
             ILHookDebuggerModule.TextConvertor.Value = value;
         }
     }
+
+    [SettingIgnore]
+    public bool OpenInEditor { get; set; }
+
+    [SettingIgnore]
+    public bool UseTextEditor { get; set; }
+
+    [SettingName("ILHookDebugger_Settings_ConsoleColor")]
+    [SettingSubText("ILHookDebugger_Settings_ConsoleColor_Help")]
+    public bool ColorfulConsole { get; set; } = true;
+
     public bool MappingUtilsIntegration
     {
         get => ILHookDebuggerModule.MappingUtilsIntegration;

@@ -1,6 +1,7 @@
 ﻿using Celeste.Mod.ILHookDebugger.MappingUtils;
 using Celeste.Mod.ImGuiHelper;
 using Celeste.Mod.MappingUtils.ImGuiHandlers;
+using ImGuiColorTextEditNet;
 using Monocle;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
@@ -13,8 +14,10 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using YamlDotNet.Core.Tokens;
+using YamlDotNet.Serialization;
 
 namespace Celeste.Mod.ILHookDebugger;
+
 public enum Compatibility
 {
     None = 0, VisualStudio, Rider, dnSpy,
@@ -90,11 +93,72 @@ public class ILHookDebuggerModule : EverestModule
         PrintingPod.Guardian.Clear();
     }
 
+    internal static IPalette PaletteForConsole() => Settings.ColorfulConsole ? new NewConsole() : new OldConsole();
+
+    internal static Lazy<(bool, string)> CheckDecompiler = new(() =>
+    {
+        static Type Loaded() => typeof(ICSharpCode.Decompiler.CSharp.CSharpDecompiler);
+        return TestWith(Loaded, "ILHookDebuggerExtension_Decompiler", "ICSharpCode.Decompiler.dll");
+    });
+
+    static (bool, string) TestWith(Func<Type> _loaded, string ext, string at)
+    {
+        bool Loaded()
+        {
+            try
+            {
+                _loaded();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        if (Loaded())
+        {
+            return (true, "Unknown");
+        }
+
+        if (Everest.Loader.TryGetDependency(new() { Name = "MappingUtils", Version = new(1, 0, 0) }, out var result))
+        {
+            Assembly? func(System.Runtime.Loader.AssemblyLoadContext _, AssemblyName name) => result.Metadata.AssemblyContext.LoadFromAssemblyName(name);
+            Instance.Metadata.AssemblyContext.Resolving += func;
+            try
+            {
+                if (Loaded())
+                {
+                    return (true, "MappingUtils");
+                }
+            }
+            finally
+            {
+                Instance.Metadata.AssemblyContext.Resolving -= func;
+            }
+        }
+        if (Everest.Loader.TryGetDependency(new() { Name = ext, Version = new(0, 0, 0) }, out var result2))
+        {
+            using var stream = Everest.Content.Get($"{ext}:/{at}").Stream;
+            Instance.Metadata.AssemblyContext.LoadFromStream(stream);
+            return (true, "Extension");
+        }
+        return (false, "");
+    }
+    internal static Lazy<(bool, string)> CheckEditor = new(() =>
+    {
+        static Type Loaded() => typeof(TextEditor);
+        return TestWith(Loaded, "ILHookDebuggerExtension_TextEditor", "ImGuiColorTextEditNet.dll");
+    });
+
     public override void Unload()
     {
         DetourManager.ILHookApplied -= OnHookApply;
 
-        ImGuiManager.Handlers.Remove(MiGui.Instance);
+        Engine.Scene.OnEndOfFrame += () =>
+        {
+            ImGuiManager.Handlers.Remove(MiGui.Instance);
+            MiGui.Instance.Display = false;
+        };
         PrintingPod.Clear();
         IgnoreDebugger();
         AppDomain.CurrentDomain.ProcessExit -= CurrentDomain_ProcessExit;
