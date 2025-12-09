@@ -18,6 +18,9 @@
     </ItemDefinitionGroup>
 
     <ItemGroup>
+        <PackageReference Include="ModInteropImportGenerator" Version="1.1.0">
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="ICSharpCode.Decompiler" Version="9.0.0.7660-preview2">
           <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
@@ -37,9 +40,6 @@
         <Reference Include="$(CelestePrefix)\FNA.dll" Private="false" />
         <Reference Include="ImGuiHelper">
           <HintPath>..\..\Cache\ImGuiHelper.ImGuiHelper.dll</HintPath>
-        </Reference>
-        <Reference Include="MappingUtils">
-          <HintPath>..\..\Cache\MappingUtils.MappingUtils.dll</HintPath>
         </Reference>
         <PackageReference Include="ImGui.NET" Version="1.91.0.1">
           <PrivateAssets>all</PrivateAssets>
