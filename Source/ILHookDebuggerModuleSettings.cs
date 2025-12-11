@@ -4,7 +4,7 @@ namespace Celeste.Mod.ILHookDebugger;
 
 public class ILHookDebuggerModuleSettings : EverestModuleSettings
 {
-    private bool mappingUtilsIntegration;
+    private bool mappingUtilsIntegration = true;
 
     [DefaultButtonBinding(0, 0)]
     public ButtonBinding PanelKey { get; set; } = null!;
@@ -70,7 +70,7 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
     [SettingSubText("ILHookDebugger_Settings_ConsoleColor_Help")]
     public bool ColorfulConsole { get; set; } = true;
 
-    public bool MappingUtilsIntegration
+    public bool MappingUtilsIntegration2
     {
         get => mappingUtilsIntegration;
         set
@@ -103,7 +103,7 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
     {
         if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName))
         {
-            var unit = new TextMenu.OnOff(Dialog.Clean("ILHookDebugger_Settings_Convertor"), MappingUtilsIntegration);
+            var unit = new TextMenu.OnOff(Dialog.Clean("ILHookDebugger_Settings_Convertor"), UseConvertor);
             unit.OnValueChange += val =>
             {
                 UseConvertor = val;
@@ -116,10 +116,10 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
     {
         if (MappingUtils.MappingUtilsTabs.IsImported)
         {
-            var unit = new TextMenu.OnOff(Dialog.Clean("ILHookDebugger_Settings_MappingUtilsIntegration"), MappingUtilsIntegration);
+            var unit = new TextMenu.OnOff(Dialog.Clean("ILHookDebugger_Settings_MappingUtilsIntegration"), MappingUtilsIntegration2);
             unit.OnValueChange += val =>
             {
-                MappingUtilsIntegration = val;
+                MappingUtilsIntegration2 = val;
             };
             menu.Add(unit);
             unit.AddDescription(menu, Dialog.Clean("ILHookDebugger_Settings_MappingUtilsIntegration_Help"));

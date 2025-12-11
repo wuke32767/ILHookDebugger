@@ -89,7 +89,7 @@ public class ILHookDebuggerModule : EverestModule
 
     internal void DoMappingUtils()
     {
-        if (MappingUtilsTabs.IsImported && !doneMappingUtils &&Settings.MappingUtilsIntegration)
+        if (MappingUtilsTabs.IsImported && !doneMappingUtils &&Settings.MappingUtilsIntegration2)
         {
             MappingUtilsTabs.RegisterTab("ILHookDebug", "ILHookDebug", MiGui.Instance.RenderCore, () => true, null, null);
             doneMappingUtils = true;
