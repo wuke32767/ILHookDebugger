@@ -105,10 +105,9 @@ namespace Celeste.Mod.ILHookDebugger
                 Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
                 var (ast, decomp) = Decompilation.FromMethod(target);
                 var w = new MyTokenWriter(new MulticastTextWriter(Console.Out, new MonocleTextWriter()), decomp.TypeSystem, ILHookDebuggerModule.PaletteForConsole());
-                ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateMono()));
+                ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
                 Engine.Commands.Log("there's a colorful copy in your console.\n(and a colorless copy in your log.)", Color.Yellow);
             }
-            GC.Collect(2);
         }
     }
 }

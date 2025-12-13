@@ -76,8 +76,10 @@ namespace Celeste.Mod.ILHookDebugger
             foreach (var hook in hooked)
             {
                 var manip = DynamicData.For(DynamicData.For(hook).Get("hook")!).Get<ILContext.Manipulator>("Manip")!;
-                il.Invoke(manip);
-                var instrs = il.Instrs;
+                if (manip.Method.DeclaringType?.Assembly != typeof(Decompilation).Assembly)
+                {
+                    il.Invoke(manip);
+                }
             }
             var (output, name, _) = PrintingPod.Operate(target, il, true);
             return Final(output, name);
