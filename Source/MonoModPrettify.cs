@@ -28,9 +28,9 @@ namespace Celeste.Mod.ILHookDebugger
             {'$','弔'},
         };
         static Dictionary<char, char> basicConvertor = """~!@#$%^&*()_+`-=[]\{}|;':",./<>?""".ToDictionary(x => x, _ => '_');
-        public static string Simplify(this string name)
+        public static string Simplify(this string name, IDEFeatures? feat = null)
         {
-            if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.NormalizeName))
+            if ((feat ?? ILHookDebuggerModule.CurrentFeature).HasFlag(IDEFeatures.NormalizeName))
             {
                 var m = ILHookDebuggerModule.TextConvertor ? advancedConvertor : basicConvertor;
                 return string.Concat(name.Select(x => m.TryGetValue(x, out var c) ? c : x));
@@ -52,7 +52,7 @@ namespace Celeste.Mod.ILHookDebugger
             {
                 name = $"{loc.Groups["in"]}{loc.Groups["id"]}{loc.Groups["name"]}";
             }
-            return (name + "@" + GetShortModName(ins)).Simplify();
+            return (name + "@" + GetShortModName(ins));
 
             static string GetShortModName(MethodInfo ins)
             {
@@ -77,7 +77,7 @@ namespace Celeste.Mod.ILHookDebugger
         }
         static MethodInfo GetValueTUnsafeT =
             typeof(DynamicReferenceManager).GetMethod("GetValueTUnsafe", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)!;
-        public static void Prettify(this ILContext il)
+        public static void Prettify(this ILContext il, IDEFeatures? feat)
         {
             if (!ILHookDebuggerModule.PrettifyMonoMod)
             {
@@ -140,7 +140,7 @@ namespace Celeste.Mod.ILHookDebugger
                         [var s, ..] => ModName(s.Method) + "#AndMore",
                     },
                     _ => stored?.ToString() ?? "!!null",
-                }}".Simplify();
+                }}".Simplify(feat);
 
                 var md = new MethodDefinition(name, Mono.Cecil.MethodAttributes.Static, storedType);
 

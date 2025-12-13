@@ -21,7 +21,7 @@ namespace Celeste.Mod.ILHookDebugger
     {
         public static string Prefix => "#ILHDStolen#";
         public static string MMPrefix => Prefix;
-        public static void Steal(this ILContext il, List<object> localslots, FieldDefinition slots)
+        public static void Steal(this ILContext il, List<object> localslots, FieldDefinition slots, IDEFeatures feat)
         {
             ILCursor ic = new(il);
             DynamicMethod? dm = null;
@@ -32,12 +32,12 @@ namespace Celeste.Mod.ILHookDebugger
                 dm ??= (ic.Next.Operand as DynamicMethodReference)?.DynamicMethod as DynamicMethod;
                 if (dm is not null)
                 {
-                    var def = new MethodDefinition((MMPrefix + localslots.Count + "#" + dm.Name).Simplify(),
+                    var def = new MethodDefinition((MMPrefix + localslots.Count + "#" + dm.Name).Simplify(feat),
                                     Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Static,
                                     il.Import(dm.ReturnType ?? typeof(void)));
                     def.Parameters.AddRange(dm.GetParameters().Select(x => new ParameterDefinition(il.Import(x.ParameterType))));
                     il.Method.DeclaringType.Methods.Add(def);
-                    var del = MakeDelegate(def);
+                    var del = MakeDelegate(def, feat);
 
                     TypeReference objtype = il.Module.TypeSystem.Object;
                     ILCursor ix = new(new ILContext(def));
@@ -90,10 +90,10 @@ namespace Celeste.Mod.ILHookDebugger
                 }
             }
 
-            static TypeDefinition MakeDelegate(MethodDefinition def)
+            static TypeDefinition MakeDelegate(MethodDefinition def, IDEFeatures feat)
             {
                 ModuleDefinition module = def.Module;
-                var deletype = new TypeDefinition("", ("ILHookDebugger#Type#Delegate" + def.Name).Simplify(),
+                var deletype = new TypeDefinition("", ("ILHookDebugger#Type#Delegate" + def.Name).Simplify(feat),
                     Mono.Cecil.TypeAttributes.Public | Mono.Cecil.TypeAttributes.Sealed | Mono.Cecil.TypeAttributes.Class,
                     module.ImportReference(typeof(MulticastDelegate)));
                 var delector = new MethodDefinition(

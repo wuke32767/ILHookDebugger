@@ -182,8 +182,9 @@ namespace Celeste.Mod.ILHookDebugger
             DuplicantLookup.Add(mi, AllDuplicants[^1]);
             //scope.Dispose();
         }
-        internal static (MemoryStream output, string name, Func<Assembly, MethodInfo> post) Operate(MethodBase mi, ILContext il, bool notrun = false)
+        internal static (MemoryStream output, string name, Func<Assembly, MethodInfo> post) Operate(MethodBase mi, ILContext il, bool notrun = false, IDEFeatures? feature = null)
         {
+            var feat = feature ?? ILHookDebuggerModule.CurrentFeature;
             ILCursor ic = new(il);
 
             int unique = System.Threading.Interlocked.Increment(ref PrintingPod.unique);
@@ -273,7 +274,7 @@ namespace Celeste.Mod.ILHookDebugger
             FieldDefinition shouldBreak = null!;
             FieldDefinition slots = new("_slot", Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, il.Import(typeof(object[])));
             List<object> localslots = [];
-            var boxed = ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanOnlyModifyRefValues);
+            var boxed = feat.HasFlag(IDEFeatures.CanOnlyModifyRefValues);
             if (!notrun)
             {
                 shouldBreak = new("ShouldNotBreak_YouCanChangeThisFromYourIDEDebugger",
@@ -292,7 +293,7 @@ namespace Celeste.Mod.ILHookDebugger
                     ic.EmitLdfld(StrongBoxValue);
                 }
                 ic.EmitBrtrue(breaking);
-                if (ILHookDebuggerModule.BreakOnce || ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanNotModifyValues))
+                if (ILHookDebuggerModule.BreakOnce || feat.HasFlag(IDEFeatures.CanNotModifyValues))
                 {
                     if (boxed)
                     {
@@ -316,14 +317,14 @@ namespace Celeste.Mod.ILHookDebugger
             dmdtype.BaseType = mdm.TypeSystem.Object;
             dmdtype.Namespace = mi.DeclaringType?.Namespace;
 
-            dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType?.Name ?? "<Module>"}".Simplify();
-            mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}".Simplify();
-            asm.Name.Name = $"{nameof(ILHookDebugger)}#Asm#{unique}".Simplify();
+            dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType?.Name ?? "<Module>"}".Simplify(feat);
+            mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}".Simplify(feat);
+            asm.Name.Name = $"{nameof(ILHookDebugger)}#Asm#{unique}".Simplify(feat);
 
-            il.Steal(localslots, slots);
-            il.Prettify();
+            il.Steal(localslots, slots, feat);
+            il.Prettify(feat);
 
-            if(localslots.Any())
+            if (localslots.Any())
             {
                 dmdtype.Fields.Add(slots);
             }
