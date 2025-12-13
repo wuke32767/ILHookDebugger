@@ -12,6 +12,10 @@ namespace Celeste.Mod.ILHookDebugger
     {
         public void Render()
         {
+            if (ImGui.Button("Copy All"))
+            {
+                ImGui.SetClipboardText(string.Join('\n', strings));
+            }
             if (ImGui.BeginChild(""))
             {
                 ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(0, ImGui.GetStyle().ItemSpacing.Y));
