@@ -73,3 +73,16 @@ Now using Decompiler from:
 ILHookDebugger_Help_Decompiler=
 Must install extension: Decompiler,
 or mapping utils.
+
+ILHookDebugger_Settings_DecompileResolver=
+Use Decompile Resolver
+
+ILHookDebugger_Settings_DecompileResolver_Help=
+allows ilspy decompiler search for the dll.
+it mysteriously crashes on several methods, if that happens, try toggling it.
+
+ILHookDebugger_Settings_DecompileHackFix=
+Decompiler Hack Fix
+
+ILHookDebugger_Settings_DecompileHackFix_Help=
+Fix a bug that somehow comes from ilspy.

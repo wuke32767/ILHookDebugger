@@ -60,6 +60,31 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
         }
     }
 
+    [SettingName("ILHookDebugger_Settings_DecompileResolver")]
+    [SettingSubText("ILHookDebugger_Settings_DecompileResolver_Help")]
+    [SettingIgnore]
+    public bool UseDecompileResolver { get; set; } = true;
+
+    [SettingName("ILHookDebugger_Settings_DecompileHackFix")]
+    [SettingSubText("ILHookDebugger_Settings_DecompileHackFix_Help")]
+    [YamlIgnore]
+    public bool DecompilerHackFix1
+    {
+        get;
+        set
+        {
+            if (value)
+            {
+                ILHookDebuggerModule.TryFix();
+            }
+            else
+            {
+                ILHookDebuggerModule.Unfix();
+            }
+            field = value;
+        }
+    }
+
     [SettingIgnore]
     public bool OpenInEditor { get; set; }
 

@@ -1,5 +1,7 @@
 ﻿using Celeste.Mod.ILHookDebugger.MappingUtils;
 using Celeste.Mod.ImGuiHelper;
+using ICSharpCode.Decompiler.IL;
+using ICSharpCode.Decompiler.TypeSystem;
 using ImGuiColorTextEditNet;
 using Monocle;
 using MonoMod.Cil;
@@ -12,6 +14,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using YamlDotNet.Core.Tokens;
 using YamlDotNet.Serialization;
 
@@ -89,7 +92,7 @@ public class ILHookDebuggerModule : EverestModule
 
     internal void DoMappingUtils()
     {
-        if (MappingUtilsTabs.IsImported && !doneMappingUtils &&Settings.MappingUtilsIntegration2)
+        if (MappingUtilsTabs.IsImported && !doneMappingUtils && Settings.MappingUtilsIntegration2)
         {
             MappingUtilsTabs.RegisterTab("ILHookDebug", "ILHookDebug", MiGui.Instance.RenderCore, () => true, null, null);
             doneMappingUtils = true;
@@ -106,29 +109,90 @@ public class ILHookDebuggerModule : EverestModule
         PrintingPod.Guardian.Clear();
     }
 
+    static Hook? issue;
+    internal static void Unfix()
+    {
+        issue?.Dispose();
+        issue = null;
+    }
+    internal static void TryFix()
+    {
+        if (MethodWithIssue is not null)
+        {
+            Try(() => issue ??= new(MethodWithIssue!, (Func<ICSharpCode.Decompiler.IL.Transforms.DelegateConstruction,
+                ILInstruction, IMethod, ILInstruction, IType, ILFunction?> orig,
+                ICSharpCode.Decompiler.IL.Transforms.DelegateConstruction self,
+                ILInstruction value, IMethod targetMethod,
+                ILInstruction target, IType delegateType) =>
+            {
+                try
+                {
+                    return orig(self, value, targetMethod, target, delegateType);
+                }
+                catch (BadImageFormatException)
+                {
+                }
+                return null;
+            }));
+        }
+    }
+    static MethodBase? MethodWithIssue = null;
     internal static IPalette PaletteForConsole() => Settings.ColorfulConsole ? new NewConsole() : new OldConsole();
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static void Nothing<T>(T _)
+    {
+    }
 
     internal static Lazy<(bool, string)> CheckDecompiler = new(() =>
     {
-        static Type Loaded() => typeof(ICSharpCode.Decompiler.CSharp.CSharpDecompiler);
-        return TestWith(Loaded, "ILHookDebuggerExtension_Decompiler", "ICSharpCode.Decompiler.dll");
-    });
-
-    static (bool, string) TestWith(Func<Type> _loaded, string ext, string at)
-    {
-        bool Loaded()
+        var r = TestWith(() => Nothing(typeof(ICSharpCode.Decompiler.CSharp.CSharpDecompiler)), "ILHookDebuggerExtension_Decompiler", "ICSharpCode.Decompiler.dll");
+        if (r.Item1)
         {
+            static void Extract()
+            {
+                MethodWithIssue = typeof(ICSharpCode.Decompiler.IL.Transforms.DelegateConstruction).GetMethod("TransformDelegateConstruction", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+            }
             try
             {
-                _loaded();
-                return true;
+                Extract();
             }
             catch
             {
-                return false;
+            }
+            if (MethodWithIssue is not null)
+            {
+                try
+                {
+                    MonoMod.Core.Platforms.PlatformTriple.Current.TryDisableInlining(MethodWithIssue);
+                }
+                catch
+                {
+                }
+                if (Settings.DecompilerHackFix1)
+                {
+                    TryFix();
+                }
             }
         }
-        if (Loaded())
+        return r;
+    });
+
+    static bool Try(Action _loaded)
+    {
+        try
+        {
+            _loaded();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    static (bool, string) TestWith(Action _loaded, string ext, string at)
+    {
+        if (Try(_loaded))
         {
             return (true, "Unknown");
         }
@@ -139,7 +203,7 @@ public class ILHookDebuggerModule : EverestModule
             Instance.Metadata.AssemblyContext.Resolving += func;
             try
             {
-                if (Loaded())
+                if (Try(_loaded))
                 {
                     return (true, "MappingUtils");
                 }
@@ -159,8 +223,7 @@ public class ILHookDebuggerModule : EverestModule
     }
     internal static Lazy<(bool, string)> CheckEditor = new(() =>
     {
-        static Type Loaded() => typeof(TextEditor);
-        return TestWith(Loaded, "ILHookDebuggerExtension_TextEditor", "ImGuiColorTextEditNet.dll");
+        return TestWith(() => Nothing(typeof(TextEditor)), "ILHookDebuggerExtension_TextEditor", "ImGuiColorTextEditNet.dll");
     });
 
     public override void Unload()
@@ -206,7 +269,7 @@ public class ILHookDebuggerModule : EverestModule
     {
         On.Monocle.Engine.Update -= Engine_Update;
     }
-    
+
     public static IDEFeatures CurrentFeature;
     internal static OnChanged<Compatibility> IDE = new(_ => { }, o =>
     {

@@ -39,3 +39,16 @@ ILHookDebugger_Settings_ConsoleColor=
 ILHookDebugger_Settings_ConsoleColor_Help=
 并非所有控制台都支持全彩，但现代终端几乎都支持。
 同样会输出到 log.txt，而它不支持全彩输出，因此会有显示错误。
+
+ILHookDebugger_Settings_DecompileResolver=
+使用反编译解析器
+
+ILHookDebugger_Settings_DecompileResolver_Help=
+允许 ilspy 在反编译时查找 dll。
+启用后，有几个方法反编译会出错，到时候可以试试禁用。
+
+ILHookDebugger_Settings_DecompileHackFix=
+应用反编译修复
+
+ILHookDebugger_Settings_DecompileHackFix_Help=
+修复一个算是来自 ilspy 的 bug。

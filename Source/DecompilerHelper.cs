@@ -17,6 +17,28 @@ using System.Threading.Tasks;
 
 namespace Celeste.Mod.ILHookDebugger
 {
+    internal class NullResolver : IAssemblyResolver
+    {
+        public MetadataFile? Resolve(IAssemblyReference reference)
+        {
+            return null;
+        }
+
+        public Task<MetadataFile?> ResolveAsync(IAssemblyReference reference)
+        {
+            return Task.FromResult<MetadataFile?>(null);
+        }
+
+        public MetadataFile? ResolveModule(MetadataFile mainModule, string moduleName)
+        {
+            return null;
+        }
+
+        public Task<MetadataFile?> ResolveModuleAsync(MetadataFile mainModule, string moduleName)
+        {
+            return Task.FromResult<MetadataFile?>(null);
+        }
+    }
     internal class DecompilerResolver : IAssemblyResolver
     {
         public MetadataFile? Resolve(IAssemblyReference reference)
@@ -97,7 +119,7 @@ namespace Celeste.Mod.ILHookDebugger
 
         static (SyntaxTree, CSharpDecompiler) Final(Stream output, string name)
         {
-            var decompiler = new CSharpDecompiler(new PEFile("NONAMELOL", output), new DecompilerResolver(), new DecompilerSettings());
+            var decompiler = new CSharpDecompiler(new PEFile("NONAMELOL", output), ILHookDebuggerModule.Settings.UseDecompileResolver ? new DecompilerResolver() : new NullResolver(), new DecompilerSettings());
 
             var found = decompiler.TypeSystem.MainModule.TypeDefinitions.First(x => x.Name == name);
             return (decompiler.DecompileType(new(found.FullName)), decompiler);

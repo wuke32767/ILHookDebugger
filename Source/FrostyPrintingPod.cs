@@ -269,6 +269,23 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                         }
                         ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_ConsoleColor_Help", lang));
                     }
+                    //ImGui.SameLine();
+
+                    //cur = ILHookDebuggerModule.Settings.UseDecompileResolver;
+                    //if (ImGui.Checkbox("Use Decompiler Resolver", ref cur))
+                    //{
+                    //    ILHookDebuggerModule.Settings.UseDecompileResolver = cur;
+                    //}
+                    //ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_DecompileResolver_Help", lang));
+
+                    ImGui.SameLine();
+
+                    cur = ILHookDebuggerModule.Settings.DecompilerHackFix1;
+                    if (ImGui.Checkbox("Decompiler Hack Fix", ref cur))
+                    {
+                        ILHookDebuggerModule.Settings.DecompilerHackFix1 = cur;
+                    }
+                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_DecompileHackFix_Help", lang));
                 }
 
                 if (ImGui.Button("Save Settings"))
