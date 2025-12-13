@@ -34,6 +34,7 @@ public enum IDEFeatures
     CanOnlyModifyRefValues = 1 << 3,
     CanNotModifyValues = 1 << 4,
     CanDebuggerLaunchButNotDefault = (1 << 5) | CanDebuggerLaunch,
+    CanNotInlineDelegate = 1 << 6,
 }
 
 public class ILHookDebuggerModule : EverestModule
@@ -277,6 +278,7 @@ public class ILHookDebuggerModule : EverestModule
         {
             Compatibility.VisualStudio =>
                 IDEFeatures.NormalizeName |
+                IDEFeatures.CanNotInlineDelegate |
                 IDEFeatures.CanDebuggerLaunch,
             Compatibility.Rider =>
                 IDEFeatures.NormalizeName |
@@ -289,6 +291,7 @@ public class ILHookDebuggerModule : EverestModule
         };
         PrintingPod.Refresh();
     });
+    internal static readonly IDEFeatures ILSpyFeature = IDEFeatures.CanNotInlineDelegate;
     // mappingutils can be not loaded
     static object? toremove;
     static Swapping DebuggerAttached = new(() =>
