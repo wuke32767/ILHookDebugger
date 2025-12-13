@@ -81,6 +81,7 @@ namespace Celeste.Mod.ILHookDebugger
                     ix.EmitCallvirt(del.Methods.First(x => x.Name == "Invoke"));
                     ix.EmitRet();
 
+                    ic.MoveAfterLabels();
                     ic.Emit(ic.Next.OpCode, def);
                     ic.Remove();
                 }
