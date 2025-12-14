@@ -277,7 +277,9 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     //    ILHookDebuggerModule.Settings.UseDecompileResolver = cur;
                     //}
                     //ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_DecompileResolver_Help", lang));
-
+                }
+                if (hasdecom || ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanNotInlineDelegate))
+                {
                     ImGui.SameLine();
 
                     cur = ILHookDebuggerModule.Settings.DecompilerHackFix1;

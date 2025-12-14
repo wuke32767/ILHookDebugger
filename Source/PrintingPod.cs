@@ -1,5 +1,6 @@
 ﻿using Celeste.Mod.Helpers.LegacyMonoMod;
 using Celeste.Mod.ILHookDebugger.MappingUtils;
+using ICSharpCode.Decompiler.IL;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
@@ -8,6 +9,7 @@ using MonoMod.RuntimeDetour;
 using MonoMod.Utils;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -19,6 +21,212 @@ using System.Threading.Tasks;
 
 namespace Celeste.Mod.ILHookDebugger
 {
+    class Transform
+    {
+        internal virtual void Run(ILContext il, IDEFeatures feat) { }
+        internal virtual void AfterLoaded(Type r, IDEFeatures feat) { }
+        internal virtual void Dispose(IDEFeatures feat) { }
+    }
+    class SomehowRelinker : Transform
+    {
+        internal override void Run(ILContext il, IDEFeatures feat)
+        {
+
+            var md = il.Method;
+            var mdm = md.Module;
+            ModuleDefinition? foundModule = null;
+            Relinker findClone = (mtp, ctx) =>
+            {
+                foundModule ??= mtp switch
+                {
+                    MemberReference mr => mr.Module,
+                    _ => null,
+                };
+                if (foundModule == mdm)
+                {
+                    foundModule = null;
+                }
+                return mtp;
+            };
+            Relinker relink = (mtp, ctx) =>
+            {
+                //if (mtp is MethodReference mr)
+                {
+                    if (mtp == md
+                    //|| (mr.FullName == md.FullName
+                    //    && mr.DeclaringType.FullName == md.DeclaringType.FullName
+                    //    && mr.DeclaringType.Scope.Name == md.DeclaringType.Scope.Name)
+                    //dmd dynamic method backend won't check this, only cecil backend checks
+                    )
+                        return md!;
+                }
+                return mdm.ImportReference(mtp);
+            };
+            PrintingPod.RunRelinker(findClone, md);
+            if (foundModule is not null)
+            {
+                mdm.AssemblyReferences.AddRange(foundModule.AssemblyReferences);
+                PrintingPod.RunRelinker(relink, md);
+            }
+        }
+    }
+    class Breaker : Transform
+    {
+        static Type StrongBoxType = typeof(StrongBox<bool>);
+        static FieldInfo StrongBoxValue = StrongBoxType.GetField(nameof(StrongBox<bool>.Value))!;
+
+        FieldDefinition shouldBreak = null!;
+        internal override void Run(ILContext il, IDEFeatures feat)
+        {
+            var md = il.Method;
+            var dmdtype = md.DeclaringType;
+            var mdm = md.Module;
+
+            ILCursor ic = new(il);
+            if (!feat.HasFlag(IDEFeatures.NotRun))
+            {
+                var boxed = feat.HasFlag(IDEFeatures.CanOnlyModifyRefValues);
+                shouldBreak = new("ShouldNotBreak_YouCanChangeThisFromYourIDEDebugger",
+                        Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, mdm.TypeSystem.Boolean);
+                if (boxed)
+                {
+                    shouldBreak.FieldType = mdm.ImportReference(StrongBoxType);
+                }
+                dmdtype.Fields.Add(shouldBreak);
+
+
+                var breaking = il.DefineLabel();
+                ic.EmitLdsfld(shouldBreak);
+                if (boxed)
+                {
+                    ic.EmitLdfld(StrongBoxValue);
+                }
+                ic.EmitBrtrue(breaking);
+                if (ILHookDebuggerModule.BreakOnce || feat.HasFlag(IDEFeatures.CanNotModifyValues))
+                {
+                    if (boxed)
+                    {
+                        ic.EmitLdsfld(shouldBreak);
+                    }
+                    ic.EmitCall(typeof(Debugger).GetProperty("IsAttached")!.GetGetMethod()!);
+                    if (boxed)
+                    {
+                        ic.EmitStfld(StrongBoxValue);
+                    }
+                    else
+                    {
+                        ic.EmitStsfld(shouldBreak);
+                    }
+                    shouldBreak.Name = "ShouldNotBreak";
+                }
+                ic.EmitDelegate(Debugger.Break);
+                ic.MarkLabel(breaking);
+            }
+        }
+        internal override void AfterLoaded(Type r, IDEFeatures feat)
+        {
+            var boxed = feat.HasFlag(IDEFeatures.CanOnlyModifyRefValues);
+            if (boxed)
+            {
+                var remotebox = r.GetField(shouldBreak.Name)!;
+                remotebox.SetValue(null, new StrongBox<bool>(false));
+            }
+        }
+    }
+    class Backup : Transform
+    {
+        ILContext il = null!;
+        Instruction[] backup = null!;
+        Instruction?[] lackup = null!;
+        internal Dictionary<Instruction, object> restore = [];
+        internal override void Run(ILContext _il, IDEFeatures feat)
+        {
+            il = _il;
+
+            // do not change the value of any instrs, or the backup can be broken
+            backup = il.Instrs.ToArray();
+            // also backup the labels so that i can use moveafterlabels
+            lackup = il.Labels.Select(x => x.Target).ToArray();
+        }
+        internal override void AfterLoaded(Type r, IDEFeatures feat)
+        {
+            il.Instrs.Clear();
+
+            foreach (var (o, b) in il.Labels.Zip(lackup))
+            {
+                o.Target = b;
+            }
+            il.Instrs.AddRange(backup);
+            foreach (var (k, v) in restore)
+            {
+                k.Operand = v;
+            }
+        }
+    }
+
+    class Cleanup(MethodBase mi, Backup b) : Transform
+    {
+        internal override void Run(ILContext il, IDEFeatures feat)
+        {
+            int unique = System.Threading.Interlocked.Increment(ref PrintingPod.unique);
+            var md = il.Method;
+            var dmdtype = md.DeclaringType;
+            var mdm = md.Module;
+            var asm = mdm.Assembly;
+            var _iact = mdm.ImportReference(typeof(IgnoresAccessChecksToAttribute)).Resolve();
+            var iact = mdm.ImportReference(_iact.GetConstructors().First());
+
+            md.Name = mi.Name;
+            dmdtype.BaseType = mdm.TypeSystem.Object;
+            dmdtype.Namespace = mi.DeclaringType?.Namespace;
+
+            dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType?.Name ?? "<Module>"}".Simplify(feat);
+            mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}".Simplify(feat);
+            asm.Name.Name = $"{nameof(ILHookDebugger)}#Asm#{unique}".Simplify(feat);
+
+            var debuggable = typeof(DebuggableAttribute).GetConstructor([typeof(bool), typeof(bool)]);
+            var dattr = new CustomAttribute(il.Import(debuggable!));
+            dattr.ConstructorArguments.Add(new(mdm.TypeSystem.Boolean, true));
+            dattr.ConstructorArguments.Add(new(mdm.TypeSystem.Boolean, true));
+            asm.CustomAttributes.Add(dattr);
+            foreach (var instr in il.Instrs)
+            {
+                //var mod = instr.Operand switch
+                //{
+                //    MethodReference mb => mb.Module.Assembly,
+                //    FieldReference fi => fi.DeclaringType.Module.Assembly,
+                //    TypeReference type => type.Module.Assembly,
+                //    _ => null,
+                //};
+                if (instr.Operand is ILLabel label)
+                {
+                    b.restore.Add(instr, label);
+                    instr.Operand = label.Target;
+                }
+                else if (instr.Operand is ILLabel[] targets)
+                {
+                    b.restore.Add(instr, targets);
+                    instr.Operand = targets.Select(l => l.Target).ToArray();
+                }
+                //if (mod is not null)
+                //{
+                //    checks.Add(mod.Name.Name);
+                //}
+            }
+            //var hooked = DetourManager.GetDetourInfo(mi).ILHooks;
+            md.FixShortLongOps();
+            //foreach (var s in checks)
+
+            foreach (var _s in mdm.AssemblyReferences)
+            {
+                var s = _s.Name;
+                var attr = new CustomAttribute(iact);
+                attr.ConstructorArguments.Add(new(mdm.TypeSystem.String, s));
+                asm.CustomAttributes.Add(attr);
+            }
+        }
+    }
+
     static class Backport
     {
         public static IEnumerable<T> Reversed<T>(this IEnumerable<T> self) => self.Reverse();
@@ -28,18 +236,55 @@ namespace Celeste.Mod.ILHookDebugger
         public ILHook? Helper;
         public Stream? Asm;
         public string? TypeName;
+        public TransformingResult? Transforming;
         public void Dispose()
         {
             Detour?.Dispose();
             Context?.Unload();
             Asm?.Dispose();
             Helper?.Dispose();
+            Transforming?.Dispose();
         }
     }
     internal static class PrintingPod
     {
-        static Type StrongBoxType = typeof(StrongBox<bool>);
-        static FieldInfo StrongBoxValue = StrongBoxType.GetField(nameof(StrongBox<bool>.Value))!;
+        internal static void RunRelinker(Relinker relinker, MethodDefinition md)
+        {
+            var def = md;
+            var clone = md;
+            foreach (var param in def.Parameters)
+            {
+                param.ParameterType = param.ParameterType.Relink(relinker, clone);
+            }
+
+            clone.ReturnType = def.ReturnType.Relink(relinker, clone);
+
+            var body = def.Body;
+
+            foreach (var var in clone.Body.Variables)
+            {
+                var.VariableType = var.VariableType.Relink(relinker, clone);
+            }
+
+            foreach (var handler in clone.Body.ExceptionHandlers)
+            {
+                if (handler.CatchType != null)
+                    handler.CatchType = handler.CatchType.Relink(relinker, clone);
+            }
+
+            foreach (var instr in body.Instructions)
+            {
+                var operand = instr.Operand;
+
+                // Import references.
+                if (operand is IMetadataTokenProvider mtp && operand is not ParameterDefinition)
+                {
+                    operand = mtp.Relink(relinker, clone);
+                }
+
+                instr.Operand = operand;
+            }
+        }
 
         internal class Guardian(string toRelease) : IDisposable
         {
@@ -124,7 +369,7 @@ namespace Celeste.Mod.ILHookDebugger
         }
         public static List<Duplicant> AllDuplicants = [];
         public static Dictionary<MethodBase, Duplicant> DuplicantLookup = [];
-        static int unique;
+        internal static int unique;
         public static void Create(MethodBase mi)
         {
             if (DuplicantLookup.TryGetValue(mi, out var exist))
@@ -145,7 +390,8 @@ namespace Celeste.Mod.ILHookDebugger
             {
                 ILCursor ic = new(il);
                 var md = il.Method;
-                var (output, _, post) = Operate(mi, il);
+                var op = Operate(mi, il);
+                var output = op.output;
                 duplicant.Asm?.Dispose();
 
                 Assembly _tmp;
@@ -167,7 +413,12 @@ namespace Celeste.Mod.ILHookDebugger
                     duplicant.Asm = output;
                     _tmp = context.LoadFromStream(output);
                 }
-                var dup = post(_tmp);
+                var dup = op.Post(_tmp);
+                if (duplicant.Transforming is { } old)
+                {
+                    old.Dispose();
+                }
+                duplicant.Transforming = op;
                 duplicant.TypeName = dup.DeclaringType?.Name;
                 for (var i = 0; i < md.Parameters.Count; i++)
                 {
@@ -182,228 +433,38 @@ namespace Celeste.Mod.ILHookDebugger
             DuplicantLookup.Add(mi, AllDuplicants[^1]);
             //scope.Dispose();
         }
-        internal static (MemoryStream output, string name, Func<Assembly, MethodInfo> post) Operate(MethodBase mi, ILContext il, bool notrun = false, IDEFeatures? feature = null)
+        internal static TransformingResult Operate(MethodBase mi, ILContext il, IDEFeatures? feature = null)
         {
             var feat = feature ?? ILHookDebuggerModule.CurrentFeature;
             ILCursor ic = new(il);
 
-            int unique = System.Threading.Interlocked.Increment(ref PrintingPod.unique);
             var md = il.Method;
-            // do not change the value of any instrs, or the backup can be broken
-            var backup = il.Instrs.ToArray();
-            // also backup the labels so that i can use moveafterlabels
-            var lackup = il.Labels.Select(x => x.Target).ToArray();
             var dmdtype = md.DeclaringType;
             var mdm = md.Module;
             var asm = mdm.Assembly;
-            var _iact = mdm.ImportReference(typeof(IgnoresAccessChecksToAttribute)).Resolve();
-            var iact = mdm.ImportReference(_iact.GetConstructors().First());
 
-            ModuleDefinition? foundModule = null;
-            Relinker findClone = (mtp, ctx) =>
+            var b = new Backup();
+            List<Transform> tr = [
+                b,
+                new SomehowRelinker(),
+                new Breaker(),
+
+                new StealDynamicMethod(),
+                new MonoModPrettify(),
+                new StealCompilerGenerated(),
+
+                new Cleanup(mi, b),
+                ];
+            foreach (var t in tr)
             {
-                foundModule ??= mtp switch
-                {
-                    MemberReference mr => mr.Module,
-                    _ => null,
-                };
-                if (foundModule == mdm)
-                {
-                    foundModule = null;
-                }
-                return mtp;
-            };
-            Relinker relink = (mtp, ctx) =>
-            {
-                //if (mtp is MethodReference mr)
-                {
-                    if (mtp == md
-                    //|| (mr.FullName == md.FullName
-                    //    && mr.DeclaringType.FullName == md.DeclaringType.FullName
-                    //    && mr.DeclaringType.Scope.Name == md.DeclaringType.Scope.Name)
-                    //dmd dynamic method backend won't check this, only cecil backend checks
-                    )
-                        return md!;
-                }
-                return mdm.ImportReference(mtp);
-            };
-            void Run(Relinker relinker)
-            {
-                var def = md;
-                var clone = md;
-                foreach (var param in def.Parameters)
-                {
-                    param.ParameterType = param.ParameterType.Relink(relinker, clone);
-                }
-
-                clone.ReturnType = def.ReturnType.Relink(relinker, clone);
-
-                var body = def.Body;
-
-                foreach (var var in clone.Body.Variables)
-                {
-                    var.VariableType = var.VariableType.Relink(relinker, clone);
-                }
-
-                foreach (var handler in clone.Body.ExceptionHandlers)
-                {
-                    if (handler.CatchType != null)
-                        handler.CatchType = handler.CatchType.Relink(relinker, clone);
-                }
-
-                foreach (var instr in body.Instructions)
-                {
-                    var operand = instr.Operand;
-
-                    // Import references.
-                    if (operand is IMetadataTokenProvider mtp && operand is not ParameterDefinition)
-                    {
-                        operand = mtp.Relink(relinker, clone);
-                    }
-
-                    instr.Operand = operand;
-                }
+                t.Run(il, feat);
             }
-            Run(findClone);
-            if (foundModule is not null)
-            {
-                mdm.AssemblyReferences.AddRange(foundModule.AssemblyReferences);
-                Run(relink);
-            }
-
-            FieldDefinition shouldBreak = null!;
-            FieldDefinition slots = new("_slot", Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, il.Import(typeof(object[])));
-            List<object> localslots = [];
-            var boxed = feat.HasFlag(IDEFeatures.CanOnlyModifyRefValues);
-            if (!notrun)
-            {
-                shouldBreak = new("ShouldNotBreak_YouCanChangeThisFromYourIDEDebugger",
-                        Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, mdm.TypeSystem.Boolean);
-                if (boxed)
-                {
-                    shouldBreak.FieldType = mdm.ImportReference(StrongBoxType);
-                }
-                dmdtype.Fields.Add(shouldBreak);
-
-
-                var breaking = il.DefineLabel();
-                ic.EmitLdsfld(shouldBreak);
-                if (boxed)
-                {
-                    ic.EmitLdfld(StrongBoxValue);
-                }
-                ic.EmitBrtrue(breaking);
-                if (ILHookDebuggerModule.BreakOnce || feat.HasFlag(IDEFeatures.CanNotModifyValues))
-                {
-                    if (boxed)
-                    {
-                        ic.EmitLdsfld(shouldBreak);
-                    }
-                    ic.EmitCall(typeof(Debugger).GetProperty("IsAttached")!.GetGetMethod()!);
-                    if (boxed)
-                    {
-                        ic.EmitStfld(StrongBoxValue);
-                    }
-                    else
-                    {
-                        ic.EmitStsfld(shouldBreak);
-                    }
-                    shouldBreak.Name = "ShouldNotBreak";
-                }
-                ic.EmitDelegate(Debugger.Break);
-                ic.MarkLabel(breaking);
-            }
-            md.Name = mi.Name;
-            dmdtype.BaseType = mdm.TypeSystem.Object;
-            dmdtype.Namespace = mi.DeclaringType?.Namespace;
-
-            dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType?.Name ?? "<Module>"}".Simplify(feat);
-            mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}".Simplify(feat);
-            asm.Name.Name = $"{nameof(ILHookDebugger)}#Asm#{unique}".Simplify(feat);
-
-            il.Steal(localslots, slots, feat);
-            il.Prettify(feat);
-
-            if (localslots.Any())
-            {
-                dmdtype.Fields.Add(slots);
-            }
-            //var hooked = DetourManager.GetDetourInfo(mi).ILHooks;
-            HashSet<string> checks = [];
-            Dictionary<Instruction, object> restore = [];
-            foreach (var instr in il.Instrs)
-            {
-                //var mod = instr.Operand switch
-                //{
-                //    MethodReference mb => mb.Module.Assembly,
-                //    FieldReference fi => fi.DeclaringType.Module.Assembly,
-                //    TypeReference type => type.Module.Assembly,
-                //    _ => null,
-                //};
-                if (instr.Operand is ILLabel label)
-                {
-                    restore.Add(instr, label);
-                    instr.Operand = label.Target;
-                }
-                else if (instr.Operand is ILLabel[] targets)
-                {
-                    restore.Add(instr, targets);
-                    instr.Operand = targets.Select(l => l.Target).ToArray();
-                }
-                //if (mod is not null)
-                //{
-                //    checks.Add(mod.Name.Name);
-                //}
-            }
-            md.FixShortLongOps();
-            //foreach (var s in checks)
-            var debuggable = typeof(DebuggableAttribute).GetConstructor([typeof(bool), typeof(bool)]);
-            var dattr = new CustomAttribute(il.Import(debuggable!));
-            dattr.ConstructorArguments.Add(new(mdm.TypeSystem.Boolean, true));
-            dattr.ConstructorArguments.Add(new(mdm.TypeSystem.Boolean, true));
-            asm.CustomAttributes.Add(dattr);
-
-            foreach (var _s in mdm.AssemblyReferences)
-            {
-                var s = _s.Name;
-                var attr = new CustomAttribute(iact);
-                attr.ConstructorArguments.Add(new(mdm.TypeSystem.String, s));
-                asm.CustomAttributes.Add(attr);
-            }
-
 
             MemoryStream output = new();
             asm.Write(output);
             output.Seek(0, SeekOrigin.Begin);
 
-            return (output, dmdtype.Name, _tmp =>
-            {
-                Type typs = _tmp.GetTypes().First(x => x.Name == dmdtype.Name);
-                var dup = typs.GetMethod(md.Name)!;
-                if (localslots.Any())
-                {
-                    var remoteslots = typs.GetField(slots.Name)!;
-                    remoteslots.SetValue(null, localslots.ToArray());
-                }
-                if (boxed)
-                {
-                    var remotebox = typs.GetField(shouldBreak.Name)!;
-                    remotebox.SetValue(null, new StrongBox<bool>(false));
-                }
-
-                il.Instrs.Clear();
-                foreach (var (o, b) in il.Labels.Zip(lackup))
-                {
-                    o.Target = b;
-                }
-                il.Instrs.AddRange(backup);
-                foreach (var (k, v) in restore)
-                {
-                    k.Operand = v;
-                }
-                return dup;
-            }
-            );
+            return new(output, dmdtype.Name, md.Name, tr, feat);
         }
 
         internal static List<Duplicant> Clear()
@@ -486,6 +547,28 @@ namespace Celeste.Mod.ILHookDebugger
                 var stream = dup.Asm!;
                 stream.Seek(0, SeekOrigin.Begin);
                 stream.CopyTo(file);
+            }
+        }
+    }
+
+    internal record struct TransformingResult(MemoryStream output, string name, string methodname, List<Transform> Transforms, IDEFeatures feat) : IDisposable
+    {
+        public readonly MethodInfo Post(Assembly _tmp)
+        {
+            var n = name;
+            Type typs = _tmp.GetTypes().First(x => x.Name == n);
+            foreach (var item in Transforms)
+            {
+                item.AfterLoaded(typs, feat);
+            }
+            var dup = typs.GetMethod(methodname)!;
+            return dup;
+        }
+        public readonly void Dispose()
+        {
+            foreach (var item in Transforms)
+            {
+                item.Dispose(feat);
             }
         }
     }

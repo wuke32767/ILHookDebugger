@@ -9,6 +9,7 @@ namespace Celeste.Mod.ILHookDebugger
     using MonoMod.Utils;
     using System;
     using System.Collections.Generic;
+    using System.Data;
     using System.Globalization;
     using System.Linq;
     using System.Reflection;
@@ -17,12 +18,20 @@ namespace Celeste.Mod.ILHookDebugger
     using System.Text;
     using System.Text.RegularExpressions;
     using System.Threading.Tasks;
-    static internal class StealDynamicMethod
+    internal class StealDynamicMethod : Transform
     {
         public static string Prefix => "#ILHDStolen#";
         public static string MMPrefix => Prefix;
-        public static void Steal(this ILContext il, List<object> localslots, FieldDefinition slots, IDEFeatures feat)
+        List<object> localslots = [];
+        FieldDefinition slots = null!;
+
+        internal override void Run(ILContext il, IDEFeatures feat)
         {
+            var md = il.Method;
+            var dmdtype = md.DeclaringType;
+
+            slots = new("_slot", Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, il.Import(typeof(object[])));
+
             ILCursor ic = new(il);
             DynamicMethod? dm = null;
             while (ic.Next is not null)
@@ -113,6 +122,18 @@ namespace Celeste.Mod.ILHookDebugger
                 deletype.Methods.Add(deleinvoke);
                 module.Types.Add(deletype);
                 return deletype;
+            }
+            if (localslots.Any())
+            {
+                dmdtype.Fields.Add(slots);
+            }
+        }
+        internal override void AfterLoaded(Type r, IDEFeatures feat)
+        {
+            if (localslots.Any())
+            {
+                var remoteslots = r.GetField(slots.Name)!;
+                remoteslots.SetValue(null, localslots.ToArray());
             }
         }
     }

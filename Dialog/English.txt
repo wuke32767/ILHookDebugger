@@ -86,3 +86,4 @@ Decompiler Hack Fix
 
 ILHookDebugger_Settings_DecompileHackFix_Help=
 Fix a bug that somehow comes from ilspy.
+It's hacking safe though.

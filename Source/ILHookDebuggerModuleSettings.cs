@@ -67,7 +67,6 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
 
     [SettingName("ILHookDebugger_Settings_DecompileHackFix")]
     [SettingSubText("ILHookDebugger_Settings_DecompileHackFix_Help")]
-    [YamlIgnore]
     public bool DecompilerHackFix1
     {
         get;

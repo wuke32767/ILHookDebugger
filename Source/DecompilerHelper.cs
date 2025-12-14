@@ -103,8 +103,8 @@ namespace Celeste.Mod.ILHookDebugger
                     il.Invoke(manip);
                 }
             }
-            var (output, name, _) = PrintingPod.Operate(target, il, true, ILHookDebuggerModule.ILSpyFeature);
-            return Final(output, name);
+            using var t = PrintingPod.Operate(target, il, ILHookDebuggerModule.ILSpyFeature);
+            return Final(t.output, t.name);
         }
 
         internal static (SyntaxTree, CSharpDecompiler) FromRunning(Duplicant target)
@@ -119,7 +119,9 @@ namespace Celeste.Mod.ILHookDebugger
 
         static (SyntaxTree, CSharpDecompiler) Final(Stream output, string name)
         {
-            var decompiler = new CSharpDecompiler(new PEFile("NONAMELOL", output), ILHookDebuggerModule.Settings.UseDecompileResolver ? new DecompilerResolver() : new NullResolver(), new DecompilerSettings());
+            var decompiler = new CSharpDecompiler(new PEFile("NONAMELOL", output),
+                ILHookDebuggerModule.Settings.UseDecompileResolver ? new DecompilerResolver() : new NullResolver(),
+                new DecompilerSettings() { UseLambdaSyntax = true, });
 
             var found = decompiler.TypeSystem.MainModule.TypeDefinitions.First(x => x.Name == name);
             return (decompiler.DecompileType(new(found.FullName)), decompiler);

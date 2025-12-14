@@ -11,8 +11,9 @@ using System.Text.RegularExpressions;
 
 namespace Celeste.Mod.ILHookDebugger
 {
-    public static partial class MonoModPrettify
+    public static partial class PrettifyUtil
     {
+
         static Dictionary<char, char> advancedConvertor = new(){
             {'>','フ'},
             {'<','く'},
@@ -28,18 +29,6 @@ namespace Celeste.Mod.ILHookDebugger
             {'$','弔'},
         };
         static Dictionary<char, char> basicConvertor = """~!@#$%^&*()_+`-=[]\{}|;':",./<>?""".ToDictionary(x => x, _ => '_');
-        public static string Simplify(this string name, IDEFeatures? feat = null)
-        {
-            if ((feat ?? ILHookDebuggerModule.CurrentFeature).HasFlag(IDEFeatures.NormalizeName))
-            {
-                var m = ILHookDebuggerModule.TextConvertor ? advancedConvertor : basicConvertor;
-                return string.Concat(name.Select(x => m.TryGetValue(x, out var c) ? c : x));
-            }
-            else
-            {
-                return name;
-            }
-        }
         public static Dictionary<string, string> Names = [];
         public static string ModName(MethodInfo ins)
         {
@@ -75,9 +64,47 @@ namespace Celeste.Mod.ILHookDebugger
                 return "!NoModule";
             }
         }
+        public static string Simplify(this string name, IDEFeatures? feat = null)
+        {
+            if ((feat ?? ILHookDebuggerModule.CurrentFeature).HasFlag(IDEFeatures.NormalizeName))
+            {
+                var m = ILHookDebuggerModule.TextConvertor ? advancedConvertor : basicConvertor;
+                return string.Concat(name.Select(x => m.TryGetValue(x, out var c) ? c : x));
+            }
+            else
+            {
+                return name;
+            }
+        }
+        [GeneratedRegex(@"\AInvoke(Void|Type)(Val|Ref)(1[0-6]|[1-9])\z", RegexOptions.ExplicitCapture)]
+        public static partial Regex MatchMMInvoke();
+        [GeneratedRegex(@"\A<(?<in>[^>]+)>b__\d+(_\d+)?\z", RegexOptions.ExplicitCapture)]
+        public static partial Regex MatchLambda();
+        [GeneratedRegex(@"\A<(?<in>[^>]+)>g__(?<name>[^\|]+)\|(?<id>\d+_\d+)\z", RegexOptions.ExplicitCapture)]
+        public static partial Regex MatchLocalFunc();
+
+        internal static bool IsMMInvoke(this MethodReference md)
+        {
+            if (md.DeclaringType.FullName == "MonoMod.Cil.FastDelegateInvokers"
+                //&& md.Module.Assembly.Name.Name == "MonoMod.Utils"
+                && MatchMMInvoke().Match(md.Name).Success
+                )
+            {
+                return true;
+            }
+            if (md.Name.StartsWith(StealDynamicMethod.MMPrefix))
+            {
+                return true;
+            }
+            return false;
+        }
+    }
+    internal partial class MonoModPrettify : Transform
+    {
         static MethodInfo GetValueTUnsafeT =
-            typeof(DynamicReferenceManager).GetMethod("GetValueTUnsafe", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)!;
-        public static void Prettify(this ILContext il, IDEFeatures? feat)
+    typeof(DynamicReferenceManager).GetMethod("GetValueTUnsafe", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)!;
+
+        internal override void Run(ILContext il, IDEFeatures feat)
         {
             if (!ILHookDebuggerModule.PrettifyMonoMod)
             {
@@ -135,9 +162,9 @@ namespace Celeste.Mod.ILHookDebugger
                 {
                     Delegate d => d.GetInvocationList() switch
                     {
-                        [var s] => ModName(s.Method),
+                        [var s] => PrettifyUtil.ModName(s.Method),
                         [] => "!Empty",
-                        [var s, ..] => ModName(s.Method) + "#AndMore",
+                        [var s, ..] => PrettifyUtil.ModName(s.Method) + "#AndMore",
                     },
                     _ => stored?.ToString() ?? "!!null",
                 }}".Simplify(feat);
@@ -203,27 +230,6 @@ namespace Celeste.Mod.ILHookDebugger
             }
 
         }
-        [GeneratedRegex(@"\AInvoke(Void|Type)(Val|Ref)(1[0-6]|[1-9])\z", RegexOptions.ExplicitCapture)]
-        public static partial Regex MatchMMInvoke();
-        [GeneratedRegex(@"\A<(?<in>[^>]+)>b__\d+(_\d+)?\z", RegexOptions.ExplicitCapture)]
-        public static partial Regex MatchLambda();
-        [GeneratedRegex(@"\A<(?<in>[^>]+)>g__(?<name>[^\|]+)\|(?<id>\d+_\d+)\z", RegexOptions.ExplicitCapture)]
-        public static partial Regex MatchLocalFunc();
 
-        static bool IsMMInvoke(this MethodReference md)
-        {
-            if (md.DeclaringType.FullName == "MonoMod.Cil.FastDelegateInvokers"
-                //&& md.Module.Assembly.Name.Name == "MonoMod.Utils"
-                && MatchMMInvoke().Match(md.Name).Success
-                )
-            {
-                return true;
-            }
-            if (md.Name.StartsWith(StealDynamicMethod.MMPrefix))
-            {
-                return true;
-            }
-            return false;
-        }
     }
 }
