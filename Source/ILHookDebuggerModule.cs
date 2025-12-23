@@ -18,6 +18,8 @@ using System.Runtime.CompilerServices;
 using YamlDotNet.Core.Tokens;
 using YamlDotNet.Serialization;
 
+[assembly: SuppressMessage("Usage", "CL0005")]
+
 namespace Celeste.Mod.ILHookDebugger;
 
 public enum Compatibility
