@@ -4,6 +4,7 @@ using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.IL;
 using ImGuiColorTextEditNet;
 using ImGuiNET;
+using Microsoft.VisualBasic;
 using Microsoft.Xna.Framework;
 using ModInteropImportGenerator;
 using Monocle;
@@ -18,6 +19,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using static Celeste.ClutterBlock;
 
 namespace Celeste.Mod.ILHookDebugger.MappingUtils
 {
@@ -331,6 +333,30 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 //    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_DecompileHackFix_Help", lang));
                 //}
 
+                var style = ImGui.GetStyle();
+                ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(0, style.ItemSpacing.Y));
+                var enums = Enum.GetNames<Compatibility>();
+                int curi = (int)ILHookDebuggerModule.IDE.Value;
+                for (int i = 0; i < enums.Length; i++)
+                {
+                    if (i == curi)
+                    {
+                        ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(66 / 255f, 150 / 255f, 250 / 255f, 1));
+                    }
+                    else
+                    {
+                        ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(41 / 255f, 74 / 255f, 122 / 255f, 1));
+                    }
+                    if (ImGui.Button(enums[i]))
+                    {
+                        ILHookDebuggerModule.IDE.Value = (Compatibility)i;
+                    }
+                    ImGui.PopStyleColor();
+                    ImGui.SameLine();
+                }
+                ImGui.PopStyleVar();
+                ImGui.Text("IDE");
+
                 if (ImGui.Button("Save Settings"))
                 {
                     ILHookDebuggerModule.Instance.SaveSettings();
@@ -595,13 +621,6 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                         return 0;
                     });
                     handle?.Free();
-                }
-
-                var enums = Enum.GetNames<Compatibility>();
-                int curi = (int)ILHookDebuggerModule.IDE.Value;
-                if (ImGui.ListBox("IDE", ref curi, enums, enums.Length))
-                {
-                    ILHookDebuggerModule.IDE.Value = (Compatibility)curi;
                 }
             }
             catch (Exception ex)
