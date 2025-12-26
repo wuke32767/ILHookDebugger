@@ -55,6 +55,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             })*/;
         }
 
+        bool helpinghand = false;
         byte[] searchText = new byte[512];
         byte[] dumpPath = new byte[512];
         object dumpobj => dumpPath;
@@ -182,11 +183,51 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             }
             try
             {
+                var helpcolor = new System.Numerics.Vector4(1, 0.5f, 0, 1);
                 if (!Dialog.Languages.TryGetValue("english", out var lang))
                 {
                     ImGui.Text("Waiting for Everest loading");
                     return;
                 }
+                if (!helpinghand)
+                {
+                    if (ILHookDebuggerModule.Settings.ShowHelp)
+                    {
+                        if (ImGui.Button("Show Help"))
+                        {
+                            helpinghand = true;
+                        }
+                    }
+                }
+                else
+                {
+                    if (ImGui.Button("Hide Help"))
+                    {
+                        helpinghand = true;
+                    }
+                    ImGui.SameLine();
+                    if (ImGui.Button("Hide FOREVER"))
+                    {
+                        ImGui.OpenPopup("HIDER##ILHookDebugger");
+                    }
+                    if (ImGui.BeginPopup("HIDER##ILHookDebugger"))
+                    {
+                        ImGui.Text(Dialog.Clean("ILHookDebugger_Helping_Disable", lang));
+                        if (ImGui.Button("HIDE"))
+                        {
+                            ILHookDebuggerModule.Settings.ShowHelp = false;
+                            helpinghand = false;
+                            ImGui.CloseCurrentPopup();
+                        }
+                        ImGui.EndPopup();
+                    }
+                }
+
+                if (helpinghand)
+                {
+                    ImGui.TextColored(helpcolor, Dialog.Clean("ILHookDebugger_Helping_Sdep1", lang));
+                }
+
                 bool cur = ILHookDebuggerModule.BreakOnce;
                 if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanNotModifyValues))
                 {
@@ -322,6 +363,10 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
 
                 ImGui.Text("");
                 ImGui.Separator();
+                if (helpinghand)
+                {
+                    ImGui.TextColored(helpcolor, Dialog.Clean("ILHookDebugger_Helping_Sdep2", lang));
+                }
 
                 if (ImGui.BeginTable("Search..", 2,
                     ImGuiTableFlags.BordersV | ImGuiTableFlags.BordersOuterH |
@@ -332,7 +377,14 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 {
 
                     ImGui.TableSetupColumn("Search..", ImGuiTableColumnFlags.NoHide | ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoHeaderLabel);
-                    ImGui.TableSetupScrollFreeze(0, 1);
+                    if (helpinghand)
+                    {
+                        ImGui.TableSetupScrollFreeze(0, 2);
+                    }
+                    else
+                    {
+                        ImGui.TableSetupScrollFreeze(0, 1);
+                    }
                     //ImGui.TableHeadersRow();
                     ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
                     ImGui.TableSetColumnIndex(0);
@@ -368,12 +420,22 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     }
                     ImGui.TableNextColumn();
 
+                    if (helpinghand)
+                    {
+                        if (searchResult.Count > 0)
+                        {
+                            ImGui.TableNextColumn();
+                            ImGui.TextColored(helpcolor, Dialog.Clean("ILHookDebugger_Helping_Sdep3", lang));
+                            ImGui.TableNextColumn();
+                            ImGui.TextColored(helpcolor, Dialog.Clean("ILHookDebugger_Helping_Sdep33", lang));
+                        }
+                    }
                     foreach (var (na, me) in searchResult)
                     {
                         ImGui.TableNextColumn();
                         ImGui.Text(na);
                         ImGui.TableNextColumn();
-                        if (ImGui.Button("Debug##" + na))
+                        if (ImGui.Button("Insert Breakpoint##" + na))
                         {
                             PrintingPod.Create(me);
                         }
@@ -441,6 +503,12 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     }
                     else
                     {
+                        if (helpinghand)
+                        {
+                            ImGui.TableNextColumn();
+                            ImGui.TextColored(helpcolor, Dialog.Clean("ILHookDebugger_Helping_Sdep4", lang));
+                            ImGui.TableNextColumn();
+                        }
                         foreach (var f in flags)
                         {
                             ImGui.TableNextColumn();

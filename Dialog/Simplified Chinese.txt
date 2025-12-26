@@ -1,5 +1,5 @@
-ILHookDebugger_Settings_UnloadWhenDetached= 停止调试时移除本 Mod 调试器
-ILHookDebugger_Settings_UnloadWhenDetached_Help= 将在停止调试（或者叫做分离/拆离调试器）时移除所有本 Mod 调试器
+ILHookDebugger_Settings_UnloadWhenDetached= 停止调试时移除本 Mod 断点
+ILHookDebugger_Settings_UnloadWhenDetached_Help= 将在停止调试（或者叫做分离/拆离调试器）时移除所有本 Mod 断点
 ILHookDebugger_Settings_MappingUtilsIntegration= 集成进 MappingUtils
 ILHookDebugger_Settings_MappingUtilsIntegration_Help=
 你将可以在 Mapping Utils 中使用本 mod 的 UI 。

@@ -51,6 +51,8 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
             ILHookDebuggerModule.IDE.Value = value;
         }
     }
+    [SettingIgnore]
+    public bool ShowHelp { get; set; } = true;
     public bool UseConvertor
     {
         get => ILHookDebuggerModule.TextConvertor;

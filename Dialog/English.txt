@@ -1,5 +1,5 @@
 ILHookDebugger_Settings_UnloadWhenDetached= Unload When Detached
-ILHookDebugger_Settings_UnloadWhenDetached_Help= Unload all my debuggers when you stop debugging (aka detach)
+ILHookDebugger_Settings_UnloadWhenDetached_Help= Unload all my breakpoint when you stop debugging (aka detach)
 
 ILHookDebugger_Help_RefreshIsAllYouNeed=
 If a new hook was added to debugging method, 
@@ -87,3 +87,21 @@ Decompiler Hack Fix
 ILHookDebugger_Settings_DecompileHackFix_Help=
 Fix a bug that somehow comes from ilspy.
 It's hacking safe though.
+
+ILHookDebugger_Helping_Disable=
+Disable builtin help forever. you can't enable it without editing settings.yaml.
+
+ILHookDebugger_Helping_Sdep1=
+Step1: Click some button in your IDE. Should be Debug(Run) > Attach to Process... > Select Celeste.
+
+ILHookDebugger_Helping_Sdep2=
+Step2: Search a method.
+
+ILHookDebugger_Helping_Sdep3=
+Step3: There may be multiple match. Pick the one you want out,
+
+ILHookDebugger_Helping_Sdep33=
+and click Insert Breakpoint.
+
+ILHookDebugger_Helping_Sdep4=
+Done.
