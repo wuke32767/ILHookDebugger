@@ -112,25 +112,6 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
         {
             base.Render();
 
-            if (!Display)
-            {
-                return;
-            }
-
-            ImGui.SetNextWindowPos(new(0, 0), ImGuiCond.FirstUseEver, System.Numerics.Vector2.Zero);
-            ImGui.SetNextWindowSize(new(150 * 2.5f, ImGui.GetMainViewport().Size.Y), ImGuiCond.FirstUseEver);
-
-            if (ImGui.Begin("ILHookDebugger##ILHookDebugger", ImGuiWindowFlags.NoFocusOnAppearing))
-            {
-                try
-                {
-                    RenderCore();
-                }
-                finally
-                {
-                    ImGui.End();
-                }
-            }
             int remove = -1;
             foreach (var ((name, content, id), index) in decompiled.Select((x, i) => (x, i)))
             {
@@ -166,6 +147,25 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 decompiled.RemoveAt(remove);
             }
 
+            if (!Display)
+            {
+                return;
+            }
+
+            ImGui.SetNextWindowPos(new(0, 0), ImGuiCond.FirstUseEver, System.Numerics.Vector2.Zero);
+            ImGui.SetNextWindowSize(new(150 * 2.5f, ImGui.GetMainViewport().Size.Y), ImGuiCond.FirstUseEver);
+
+            if (ImGui.Begin("ILHookDebugger##ILHookDebugger", ImGuiWindowFlags.NoFocusOnAppearing))
+            {
+                try
+                {
+                    RenderCore();
+                }
+                finally
+                {
+                    ImGui.End();
+                }
+            }
         }
         public bool Display = false;
         public bool overwrite = false;
@@ -205,7 +205,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 {
                     if (ImGui.Button("Hide Help"))
                     {
-                        helpinghand = true;
+                        helpinghand = false;
                     }
                     ImGui.SameLine();
                     if (ImGui.Button("Hide FOREVER"))

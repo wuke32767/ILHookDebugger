@@ -138,7 +138,7 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
             unit.AddDescription(menu, Dialog.Clean("ILHookDebugger_Settings_Convertor_Help"));
         }
     }
-    public void CreateMappingUtilsIntegrationEntry(TextMenu menu, bool _)
+    public void CreateMappingUtilsIntegration2Entry(TextMenu menu, bool _)
     {
         if (MappingUtils.MappingUtilsTabs.IsImported)
         {
