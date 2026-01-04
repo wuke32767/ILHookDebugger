@@ -186,7 +186,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             try
             {
                 var helpcolor = new System.Numerics.Vector4(1, 0.5f, 0, 1);
-                if (!Dialog.Languages.TryGetValue("english", out var lang))
+                if (Dialog.Languages?.TryGetValue("english", out var lang) != true)
                 {
                     ImGui.Text("Waiting for Everest loading");
                     return;

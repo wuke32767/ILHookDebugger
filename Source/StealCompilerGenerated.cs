@@ -17,9 +17,10 @@ namespace Celeste.Mod.ILHookDebugger
 {
     using Resolve = NotTooLazy<MethodReference, MethodBase>;
 
-    internal class StealCompilerGenerated : Transform
+    internal class StealCompilerGenerated(TypeAttr attr) : Transform()
     {
-        public static string Prefix => "<Proxy>";
+        public static string Prefix => "GetDelegateFactory(";
+        public static string Suffix => ").Create";
         // https://github.com/icsharpcode/ILSpy/blob/6755d27a96f4d443cbee93119fa3166334fe63d5/ICSharpCode.Decompiler/IL/Transforms/DelegateConstruction.cs#L112
         static bool IsAnonymousMethod(MethodReference method, ref Resolve cache)
         {
@@ -86,37 +87,48 @@ namespace Celeste.Mod.ILHookDebugger
                 Resolve cache = new(static r => r.ResolveReflection(), fun!);
                 if (fun is not null && ctor is not null && isDelegate(ctor.DeclaringType) && IsAnonymousMethod(fun, ref cache))
                 {
-                    MethodDefinition def = new(Prefix + (index++) + "$" + fun.Name.Simplify(feat),
-                        Mono.Cecil.MethodAttributes.Static | Mono.Cecil.MethodAttributes.Public,
-                        fun.ReturnType);
-                    if (fun.HasThis)
+                    var code = ic.Next!.OpCode;
+                    string name;
+                    if (feat.HasFlag(IDEFeatures.NormalizeName))
                     {
-                        def.Parameters.Add(new(fun.DeclaringType));
-                    }
-                    def.Parameters.AddRange(fun.Parameters);
-                    using var il2 = new ILContext(def);
-                    var ix = new ILCursor(il2);
-                    foreach (var i in def.Parameters)
-                    {
-                        ix.EmitLdarg(i);
-                    }
-                    if (ic.Next!.OpCode == OpCodes.Ldvirtftn)
-                    {
-                        ix.EmitCallvirt(fun);
+                        name = $"CreateDelegateFor<{fun.Name}@{index++}>";
                     }
                     else
                     {
-                        ix.EmitCall(fun);
+                        name = $"GetDelegateFactory({fun.Name}@{index++}).Create";
                     }
+                    MethodDefinition def = new(name,
+                        Mono.Cecil.MethodAttributes.Static | Mono.Cecil.MethodAttributes.Public,
+                        ctor.DeclaringType);
+
+                    using var il2 = new ILContext(def);
+                    var ix = new ILCursor(il2);
+                    ParameterDefinition p = new(il.Module.TypeSystem.Object);
+                    def.Parameters.Add(p);
+                    ix.EmitLdarg0();
+                    if (code == OpCodes.Ldvirtftn)
+                    {
+                        ParameterDefinition px = new(il.Module.TypeSystem.Object);
+                        def.Parameters.Add(px);
+                        ix.EmitLdarg1();
+                    }
+                    ix.Emit(code, fun);
+                    VariableDefinition local = new(il.Module.TypeSystem.IntPtr);
+                    def.Body.Variables.Add(local);
+                    ix.EmitStloc(local);
+                    ix.EmitLdloc(local);
+                    ix.EmitNewobj(ctor);
+
                     ix.EmitRet();
 
                     def.CustomAttributes.Add(new(il.Import(typeof(CompilerGeneratedAttribute).GetConstructor([])!)));
-                    def.CustomAttributes.Add(new(il.Import(typeof(ExtensionAttribute).GetConstructor([])!)));
+                    def.CustomAttributes.Add(new(attr.MakeExtension(il)));
 
                     il.Method.DeclaringType.Methods.Add(def);
 
                     ic.MoveAfterLabels();
-                    ic.Emit(ic.Next.OpCode, def);
+                    ic.EmitCall(def);
+                    ic.Remove();
                     ic.Remove();
                 }
                 else

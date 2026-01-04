@@ -133,6 +133,21 @@ namespace Celeste.Mod.ILHookDebugger
             }
         }
     }
+    internal class TypeAttr() : Transform()
+    {
+        MethodReference? ext;
+        internal MethodReference MakeExtension(ILContext il)
+        {
+            if (ext is null)
+            {
+                ext = il.Import(typeof(ExtensionAttribute).GetConstructor([])!);
+                TypeDefinition declaringType = il.Method.DeclaringType;
+                declaringType.CustomAttributes.Add(new(ext));
+                declaringType.Attributes |= Mono.Cecil.TypeAttributes.Sealed | Mono.Cecil.TypeAttributes.Abstract;
+            }
+            return ext;
+        }
+    }
     class Backup : Transform
     {
         ILContext il = null!;
@@ -444,6 +459,7 @@ namespace Celeste.Mod.ILHookDebugger
             var asm = mdm.Assembly;
 
             var b = new Backup();
+            var tacache = new TypeAttr();
             List<Transform> tr = [
                 b,
                 new SomehowRelinker(),
@@ -451,7 +467,7 @@ namespace Celeste.Mod.ILHookDebugger
 
                 new StealDynamicMethod(),
                 new MonoModPrettify(),
-                new StealCompilerGenerated(),
+                new StealCompilerGenerated(tacache),
 
                 new Cleanup(mi, b),
                 ];
