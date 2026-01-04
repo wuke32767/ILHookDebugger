@@ -320,18 +320,15 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     //    ILHookDebuggerModule.Settings.UseDecompileResolver = cur;
                     //}
                     //ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_DecompileResolver_Help", lang));
-                }
-                //if (hasdecom || ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.CanNotInlineDelegate))
-                //{
-                //    ImGui.SameLine();
+                    ImGui.SameLine();
 
-                //    cur = ILHookDebuggerModule.Settings.DecompilerHackFix1;
-                //    if (ImGui.Checkbox("Decompiler Hack Fix", ref cur))
-                //    {
-                //        ILHookDebuggerModule.Settings.DecompilerHackFix1 = cur;
-                //    }
-                //    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_DecompileHackFix_Help", lang));
-                //}
+                    cur = ILHookDebuggerModule.Settings.DecompilerHackFix1;
+                    if (ImGui.Checkbox("Decompiler Hack Fix", ref cur))
+                    {
+                        ILHookDebuggerModule.Settings.DecompilerHackFix1 = cur;
+                    }
+                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_DecompileHackFix_Help", lang));
+                }
 
                 var style = ImGui.GetStyle();
                 ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(0, style.ItemSpacing.Y));

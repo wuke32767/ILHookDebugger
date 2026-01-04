@@ -4,6 +4,7 @@ using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.TypeSystem;
 using ImGuiColorTextEditNet;
 using Monocle;
+using MonoMod;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using MonoMod.Utils;
@@ -40,6 +41,7 @@ public enum IDEFeatures
     NotRun = 1 << 7,
 }
 
+[PatchDependency]
 public class ILHookDebuggerModule : EverestModule
 {
     public static ILHookDebuggerModule Instance { get; private set; } = null!;
@@ -150,7 +152,7 @@ public class ILHookDebuggerModule : EverestModule
 
     internal static Lazy<(bool, string)> CheckDecompiler = new(() =>
     {
-        var r = TestWith(() => Nothing(typeof(ICSharpCode.Decompiler.CSharp.CSharpDecompiler)), "ILHookDebuggerExtension_Decompiler", "ICSharpCode.Decompiler.dll");
+        var r = TestWith(() => Nothing(typeof(ICSharpCode.Decompiler.CSharp.CSharpDecompiler)), "ILHookDebuggerExtension_Decompiler", "ICSharpCode.Decompiler");
         if (r.Item1)
         {
             static void Extract()
@@ -201,6 +203,23 @@ public class ILHookDebuggerModule : EverestModule
             return (true, "Unknown");
         }
 
+        if (Everest.Loader.TryGetDependency(new() { Name = ext, Version = new(0, 0, 0) }, out var result2))
+        {
+            using var stream = Everest.Content.Get($"{ext}:/{at}.dll").Stream;
+            Assembly? func(System.Runtime.Loader.AssemblyLoadContext _, AssemblyName name) =>(name.Name==at)? Instance.Metadata.AssemblyContext.LoadFromStream(stream):null;
+            Instance.Metadata.AssemblyContext.Resolving += func;
+            try
+            {
+                if (Try(_loaded))
+                {
+                    return (true, "Extension");
+                }
+            }
+            finally
+            {
+                Instance.Metadata.AssemblyContext.Resolving -= func;
+            }
+        }
         if (Everest.Loader.TryGetDependency(new() { Name = "MappingUtils", Version = new(1, 0, 0) }, out var result))
         {
             Assembly? func(System.Runtime.Loader.AssemblyLoadContext _, AssemblyName name) => result.Metadata.AssemblyContext.LoadFromAssemblyName(name);
@@ -217,17 +236,11 @@ public class ILHookDebuggerModule : EverestModule
                 Instance.Metadata.AssemblyContext.Resolving -= func;
             }
         }
-        if (Everest.Loader.TryGetDependency(new() { Name = ext, Version = new(0, 0, 0) }, out var result2))
-        {
-            using var stream = Everest.Content.Get($"{ext}:/{at}").Stream;
-            Instance.Metadata.AssemblyContext.LoadFromStream(stream);
-            return (true, "Extension");
-        }
         return (false, "");
     }
     internal static Lazy<(bool, string)> CheckEditor = new(() =>
     {
-        return TestWith(() => Nothing(typeof(TextEditor)), "ILHookDebuggerExtension_TextEditor", "ImGuiColorTextEditNet.dll");
+        return TestWith(() => Nothing(typeof(TextEditor)), "ILHookDebuggerExtension_TextEditor", "ImGuiColorTextEditNet");
     });
 
     public override void Unload()
@@ -244,6 +257,7 @@ public class ILHookDebuggerModule : EverestModule
         AppDomain.CurrentDomain.ProcessExit -= CurrentDomain_ProcessExit;
         GC.Collect();
         PrintingPod.Guardian.Clear();
+        Unfix();
         // TODO: unapply any hooks applied in Load()
     }
 
@@ -294,8 +308,8 @@ public class ILHookDebuggerModule : EverestModule
         };
         PrintingPod.Refresh();
     });
-    internal static readonly IDEFeatures ILSpyFeature = 
-        IDEFeatures.CanNotInlineDelegate |
+    internal static IDEFeatures ILSpyFeature =>
+        (Settings.DecompilerHackFix1 ? IDEFeatures.None : IDEFeatures.CanNotInlineDelegate) |
         IDEFeatures.NotRun;
     // mappingutils can be not loaded
     static object? toremove;

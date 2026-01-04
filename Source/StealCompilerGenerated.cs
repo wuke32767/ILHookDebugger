@@ -73,7 +73,7 @@ namespace Celeste.Mod.ILHookDebugger
         }
         internal override void Run(ILContext il, IDEFeatures feat)
         {
-            if (!feat.HasFlag(IDEFeatures.CanNotInlineDelegate) || !ILHookDebuggerModule.Settings.DecompilerHackFix1)
+            if (!feat.HasFlag(IDEFeatures.CanNotInlineDelegate))
             {
                 return;
             }

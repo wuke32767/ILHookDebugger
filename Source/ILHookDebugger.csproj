@@ -21,11 +21,12 @@
         <PackageReference Include="ModInteropImportGenerator" Version="1.1.0">
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="ICSharpCode.Decompiler" Version="9.0.0.7660-preview2">
-          <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
+        <PackageReference Include="MonoMod.Patcher" Version="25.0.0-prerelease.1" />
         <Reference Include="ImGuiColorTextEditNet">
           <HintPath>./ImGuiColorTextEditNet.dll</HintPath>
+        </Reference>
+        <Reference Include="ICSharpCode.Decompiler.NoMap">
+          <HintPath>./ICSharpCode.Decompiler.dll</HintPath>
         </Reference>
         <PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.3" PrivateAssets="all" ExcludeAssets="runtime">
           <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
