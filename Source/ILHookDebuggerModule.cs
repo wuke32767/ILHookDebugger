@@ -16,6 +16,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 using YamlDotNet.Core.Tokens;
 using YamlDotNet.Serialization;
 
@@ -41,7 +42,6 @@ public enum IDEFeatures
     NotRun = 1 << 7,
 }
 
-[PatchDependency]
 public class ILHookDebuggerModule : EverestModule
 {
     public static ILHookDebuggerModule Instance { get; private set; } = null!;
@@ -152,7 +152,7 @@ public class ILHookDebuggerModule : EverestModule
 
     internal static Lazy<(bool, string)> CheckDecompiler = new(() =>
     {
-        var r = TestWith(() => Nothing(typeof(ICSharpCode.Decompiler.CSharp.CSharpDecompiler)), "ILHookDebuggerExtension_Decompiler", "ICSharpCode.Decompiler");
+        var r = TestWith(() => typeof(ICSharpCode.Decompiler.CSharp.CSharpDecompiler), "ILHookDebuggerExtension_Decompiler");
         if (r.Item1)
         {
             static void Extract()
@@ -196,51 +196,19 @@ public class ILHookDebuggerModule : EverestModule
             return false;
         }
     }
-    static (bool, string) TestWith(Action _loaded, string ext, string at)
+    static (bool, string) TestWith(Func<Type> _loaded, string ext)
     {
-        if (Try(_loaded))
+        if (Try(() => _loaded()))
         {
-            return (true, "Unknown");
+            var t = (AssemblyLoadContext.GetLoadContext(_loaded().Assembly) as EverestModuleAssemblyContext)?.Name ?? "Unknown";
+            return (true, t == ext ? "Extension" : t);
         }
 
-        if (Everest.Loader.TryGetDependency(new() { Name = ext, Version = new(0, 0, 0) }, out var result2))
-        {
-            using var stream = Everest.Content.Get($"{ext}:/{at}.dll").Stream;
-            Assembly? func(System.Runtime.Loader.AssemblyLoadContext _, AssemblyName name) =>(name.Name==at)? Instance.Metadata.AssemblyContext.LoadFromStream(stream):null;
-            Instance.Metadata.AssemblyContext.Resolving += func;
-            try
-            {
-                if (Try(_loaded))
-                {
-                    return (true, "Extension");
-                }
-            }
-            finally
-            {
-                Instance.Metadata.AssemblyContext.Resolving -= func;
-            }
-        }
-        if (Everest.Loader.TryGetDependency(new() { Name = "MappingUtils", Version = new(1, 0, 0) }, out var result))
-        {
-            Assembly? func(System.Runtime.Loader.AssemblyLoadContext _, AssemblyName name) => result.Metadata.AssemblyContext.LoadFromAssemblyName(name);
-            Instance.Metadata.AssemblyContext.Resolving += func;
-            try
-            {
-                if (Try(_loaded))
-                {
-                    return (true, "MappingUtils");
-                }
-            }
-            finally
-            {
-                Instance.Metadata.AssemblyContext.Resolving -= func;
-            }
-        }
         return (false, "");
     }
     internal static Lazy<(bool, string)> CheckEditor = new(() =>
     {
-        return TestWith(() => Nothing(typeof(TextEditor)), "ILHookDebuggerExtension_TextEditor", "ImGuiColorTextEditNet");
+        return TestWith(() => typeof(TextEditor), "ILHookDebuggerExtension_TextEditor");
     });
 
     public override void Unload()
