@@ -13,10 +13,13 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
+using System.Threading;
+using System.Threading.Tasks;
 using YamlDotNet.Core.Tokens;
 using YamlDotNet.Serialization;
 
@@ -113,6 +116,62 @@ public class ILHookDebuggerModule : EverestModule
         PrintingPod.Clear();
         GC.Collect();
         PrintingPod.Guardian.Clear();
+    }
+
+    static HttpListener? http;
+    static CancellationTokenSource? httpcancel;
+    internal static void CtrlC()
+    {
+        httpcancel?.Cancel();
+        httpcancel?.Dispose();
+        httpcancel = null;
+        http?.Close();
+        http = null;
+    }
+    internal static DateTime servertime = DateTime.UtcNow;
+    internal static void Service()
+    {
+        servertime = DateTime.UtcNow;
+        http ??= new();
+        httpcancel ??= new();
+        try
+        {
+            http.Prefixes.Add($"http://localhost:{Settings.Port}/");
+            http.Start();
+            var token = httpcancel.Token;
+            Task.Run(async () =>
+            {
+                while (http is { } h)
+                {
+                    var cur = await h.GetContextAsync().WaitAsync(token);
+                    _ = Task.Run(cur.Request.Url?.Segments.ElementAtOrDefault(1) switch
+                    {
+                        "list" => RetroLEDPrintingPod.List(cur),
+                        "method" => RetroLEDPrintingPod.Get(cur),
+                        "version" => RetroLEDPrintingPod.Version(cur),
+                        "" or null or "index.html" or "index.htm" => () =>
+                        {
+                            cur.Response.ContentType = "text/html";
+                            using var s = Everest.Content.Get("ILHookDebugger:/index.html").Stream;
+                            s.CopyTo(cur.Response.OutputStream);
+                        }
+                        ,
+                        _ => () =>
+                        {
+                            cur.Response.StatusCode = 404;
+                        }
+                    } + (() =>
+                    {
+                        cur.Response.Close();
+                    }));
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(nameof(ILHookDebugger), "can't run as server.");
+            Logger.Error(nameof(ILHookDebugger), ex.ToString());
+        }
     }
 
     static Hook? issue;
@@ -213,6 +272,7 @@ public class ILHookDebuggerModule : EverestModule
 
     public override void Unload()
     {
+        CtrlC();
         DetourManager.ILHookApplied -= OnHookApply;
 
         Engine.Scene.OnEndOfFrame += () =>

@@ -448,16 +448,10 @@ namespace Celeste.Mod.ILHookDebugger
             DuplicantLookup.Add(mi, AllDuplicants[^1]);
             //scope.Dispose();
         }
-        internal static TransformingResult Operate(MethodBase mi, ILContext il, IDEFeatures? feature = null)
+        internal static List<Transform> Process(MethodBase mi, ILContext il, IDEFeatures feat)
         {
-            var feat = feature ?? ILHookDebuggerModule.CurrentFeature;
             ILCursor ic = new(il);
-
-            var md = il.Method;
-            var dmdtype = md.DeclaringType;
-            var mdm = md.Module;
-            var asm = mdm.Assembly;
-
+            
             var b = new Backup();
             var tacache = new TypeAttr();
             List<Transform> tr = [
@@ -475,6 +469,16 @@ namespace Celeste.Mod.ILHookDebugger
             {
                 t.Run(il, feat);
             }
+            return tr;
+        }
+        internal static TransformingResult Operate(MethodBase mi, ILContext il, IDEFeatures? feature = null)
+        {
+            var feat = feature ?? ILHookDebuggerModule.CurrentFeature;
+            var tr = Process(mi, il, feat);
+            var md = il.Method;
+            var dmdtype = md.DeclaringType;
+            var mdm = md.Module;
+            var asm = mdm.Assembly;
 
             MemoryStream output = new();
             asm.Write(output);

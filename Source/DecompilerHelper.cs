@@ -117,7 +117,7 @@ namespace Celeste.Mod.ILHookDebugger
             return Final(output, name);
         }
 
-        static (SyntaxTree, CSharpDecompiler) Final(Stream output, string name)
+        internal static (SyntaxTree, CSharpDecompiler) Final(Stream output, string name)
         {
             var decompiler = new CSharpDecompiler(new PEFile("NONAMELOL", output),
                 ILHookDebuggerModule.Settings.UseDecompileResolver ? new DecompilerResolver() : new NullResolver(),

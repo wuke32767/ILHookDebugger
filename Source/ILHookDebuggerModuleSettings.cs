@@ -86,6 +86,28 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
         }
     }
 
+    [SettingName("ILHookDebugger_Settings_Decompiler_ServerMode")]
+    [SettingSubText("ILHookDebugger_Settings_Help_Decompiler_ServerMode")]
+    public bool ServerMode
+    {
+        get;
+        set
+        {
+            if (value)
+            {
+                ILHookDebuggerModule.Service();
+            }
+            else
+            {
+                ILHookDebuggerModule.CtrlC();
+            }
+            field = value;
+        }
+    }
+
+    [SettingNeedsRelaunch]
+    public int Port { get; set; } = 4446;
+
     [SettingIgnore]
     public bool OpenInEditor { get; set; }
 
@@ -104,6 +126,19 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
             mappingUtilsIntegration = value;
             ILHookDebuggerModule.Instance.DoMappingUtils();
         }
+    }
+
+    public string? ServerInfo { get; set; }
+
+    public void CreateServerInfoEntry(TextMenu menu, bool _)
+    {
+    }
+    public void CreatePortEntry(TextMenu menu, bool _)
+    {
+        var i = new TextMenu.Slider(Dialog.Clean("ILHookDebugger_Settings_Decompiler_ServerModePort"), _ => Port.ToString(), Port, Port);
+        menu.Add(i);
+        i.AddDescription(menu, Dialog.Clean("ILHookDebugger_Settings_Help_Decompiler_ServerModePort"));
+        i.AddDescription(menu, Dialog.Clean("ILHookDebugger_Settings_Help_Decompiler_ServerModePort_NoEdit"));
     }
     public void CreateBreakOnceEntry(TextMenu menu, bool _)
     {

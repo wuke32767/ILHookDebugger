@@ -1,0 +1,407 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg" xmlns:x86="http://www.felixcloutier.com/x86">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>
+        il hook viewer
+    </title>
+</head>
+<body>
+    <style>
+        a,
+        a:link,
+        a:visited,
+        a:hover,
+        a:active {
+            text-decoration: none;
+            color: inherit;
+        }
+
+
+        #decom {
+            color: rgb(218, 218, 218);
+        }
+
+        body {
+            background-color: #1f1f1f;
+            color: white;
+        }
+
+        .instr {
+            color: deepskyblue;
+        }
+
+        .added {
+            color: lightgreen;
+        }
+
+        .removed {
+            color: orangered;
+        }
+
+        .crossed {
+            color: orange;
+        }
+
+        .bind {
+            color: grey;
+            font-style: italic;
+        }
+
+        .highlight {
+            background-color: rgb(78, 201, 176, 0.40)
+        }
+
+        .CssClass0 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass1 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass2 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass3 {
+            color: rgb(216, 160, 223)
+        }
+
+        .CssClass4 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass5 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass6 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass7 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass8 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass9 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass10 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass11 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass12 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass13 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass14 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass15 {
+            color: rgb(78, 201, 176)
+        }
+
+        .CssClass16 {
+            color: rgb(134, 198, 145)
+        }
+
+        .CssClass17 {
+            color: rgb(184, 215, 163)
+        }
+
+        .CssClass18 {
+            color: rgb(184, 215, 163)
+        }
+
+        .CssClass19 {
+            color: rgb(184, 215, 163)
+        }
+
+        .CssClass20 {
+            color: rgb(78, 201, 176)
+        }
+
+        .CssClass21 {
+            color: rgb(220, 220, 170)
+        }
+
+        .CssClass22 {
+            color: rgb(220, 220, 170)
+        }
+
+        .CssClass23 {
+            color: rgb(156, 220, 254)
+        }
+
+        .CssClass30 {
+            color: rgb(156, 220, 254)
+        }
+
+        .CssClass31 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass32 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass33 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass34 {
+            color: rgb(86, 156, 214)
+        }
+
+        .CssClass35 {
+            color: rgb(87, 166, 74)
+        }
+
+        .CssClass36 {
+            color: rgb(214, 157, 133)
+        }
+
+        #panel {
+            position: fixed;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.6);
+            top: 0;
+            left: 0;
+        }
+    </style>
+    <div id="panel" style="display:none">
+        <div id="infopanel" style="max-width: 50vw; max-height: 50vh; overflow: auto; border: solid 2px rgb(192, 192, 192); background-color: #1f1f1f;padding:1ch">
+
+        </div>
+    </div>
+    <div style="display:flex;flex-direction:column">
+        <h1>
+            IL Hook Viewer
+        </h1>
+        <h2 id="info">
+            <a href="#">Info</a>
+        </h2>
+        <script>
+            let r = false
+            let panel = document.getElementById('panel')
+            panel.onclick = () => panel.style.display = 'none'
+            document.getElementById("infopanel").onclick = (event) => {
+                event.stopPropagation()
+            }
+            document.getElementById("info").onclick = async () => {
+                if (r == true) {
+                    return
+                }
+                r = true
+                let ht = await fetch("/version")
+                let json = await ht.json()
+                let d = document.getElementById("panel")
+                d.style.display = null
+                let p = document.getElementById("infopanel")
+                p.innerHTML = ""
+                if (json.info != null) {
+                    let a = document.createElement("div")
+                    a.innerText = json.info
+                    p.appendChild(a)
+                }
+                let a = document.createElement("div")
+                a.innerText = "server starts running at " + new Date(json.time).toLocaleString()
+                p.appendChild(a)
+
+                let js = json.mods
+                for (var i = 0; i < js.length; i++) {
+                    let a = document.createElement("div")
+                    let j = js[i]
+                    a.innerText = j.name + "  " + j.version
+                    p.appendChild(a)
+                }
+                r = false
+            }
+        </script>
+        <h2>
+            Method:
+        </h2>
+        <select id="selector" style="max-width:80vw">
+            <option>please select</option>
+        </select>
+        <div id="msg" style="color: yellow">
+
+        </div>
+        <div id="hook" style="display:flex;flex-direction:column;overflow-x:auto">
+
+        </div>
+        <pre id="il" style="display:flex;flex-direction:column;overflow-x:auto">
+
+        </pre>
+        <pre id="decom" style="display:flex;flex-direction:column;overflow-x:auto">
+
+        </pre>
+
+    </div>
+    <script async>
+        async function main() {
+            let list = await fetch("/list")
+            let ll = await list.json()
+            ll = ll.map((r, i) => [r, i]).sort((x, y) => x[0] < y[0] ? -1 : x[0] == y[0] ? 0 : 1)
+            let c = []
+            let sel = document.getElementById("selector")
+            for (var i = 0; i < ll.length; i++) {
+                let ai = ll[i][1]
+                let name = ll[i][0]
+                let op = document.createElement("option")
+                op.value = i
+                op.innerText = name
+                sel.appendChild(op)
+            }
+            sel.onchange = async (event) => {
+                let ai = Number(event.target.value)
+                let name = ll[ai][0]
+                let msg = document.getElementById("msg")
+                msg.innerHTML = ""
+                msg.innerText = "working..."
+
+                let h = await fetch("/method", {
+                    body: JSON.stringify({
+                        hint: ai.toString(),
+                        name: name,
+                    }),
+                    method: "POST",
+                })
+                let js = await h.json()
+                let dd = document.getElementById("decom")
+                dd.innerHTML = ""
+                let il = document.getElementById("il")
+                il.innerHTML = ""
+                let hook = document.getElementById("hook")
+                hook.innerHTML = ""
+
+                msg.innerText = js.message.join("\n")
+
+                let ons = js.ons.map(a => "On: " + a).concat(js.ils.map(b => "IL: " + b))
+                for (var i = 0; i < ons.length; i++) {
+                    let p = document.createElement("div")
+                    p.innerText = ons[i]
+                    hook.appendChild(p)
+                }
+                if (js.ils.length == 0) {
+                    return
+                }
+                let diff = js.diff
+                for (var i = 0; i < diff.length; i++) {
+                    let instr = diff[i];
+                    let main = document.createElement("div")
+                    il.appendChild(main)
+                    main.id = `il_${instr.offset}`
+
+                    let ins = document.createElement("span")
+                    let f = instr.flag
+                    let s = " "
+                    if (f.includes("r") && f.includes("a")) {
+                        ins.className = "crossed"
+                        if (f.includes("o")) {
+                            s = "-"
+                        } else {
+                            s = "+"
+                        }
+                    } else {
+                        if (f.includes("a")) {
+                            ins.className = "added"
+                            s = "+"
+                        }
+                        if (f.includes("r")) {
+                            ins.className = "removed"
+                            s = "-"
+                        }
+                    }
+                    ins.innerText = `${s} ${instr.instr}`
+                    main.appendChild(ins)
+
+                    let src = instr.src
+                    if (src.length > 0) {
+                        let then = document.createElement("span")
+                        then.className = "instr"
+                        then.innerText = src.map(s => " @ " + s).join("")
+                        main.appendChild(then)
+                    }
+
+                    let bind = instr.bound
+                    if (bind != null) {
+                        let doc = document.createElement("div")
+                        doc.className = "bind"
+                        doc.innerText = "    |> " + bind
+                        il.appendChild(doc)
+                    }
+                    let brea = instr.break
+                    if (brea != null && brea.length > 0) {
+                        let doc = document.createElement("div")
+                        doc.className = "bind"
+                        let sp1 = document.createElement("span")
+                        sp1.innerText = "    => "
+                        doc.appendChild(sp1)
+                        for (var j = 0; j < brea.length; j++) {
+                            let o = brea[j]
+                            let label = document.createElement("a")
+                            let raw = o.toString(16)
+                            while (raw.length < 4) {
+                                raw = "0" + raw
+                            }
+                            label.innerText = "IL_" + raw + " "
+                            label.href = `#il_${o}`
+                            doc.appendChild(label)
+
+                            let tar
+                            label.onmouseover = () => {
+                                tar ??= document.getElementById(`il_${o}`)
+                                tar.classList.add("highlight")
+                            }
+                            label.onmouseleave = () => {
+                                tar ??= document.getElementById(`il_${o}`)
+                                tar.classList.remove("highlight")
+                            }
+                        }
+                        il.appendChild(doc)
+                    }
+                }
+
+                let decom = js.decompile
+                if (decom != null) {
+                    for (var i = 0; i < decom.length; i++) {
+                        let line = document.createElement("div")
+                        dd.appendChild(line)
+                        let lc = decom[i]
+                        for (var j = 0; j < lc.length; j++) {
+                            let token = lc[j]
+                            let w = document.createElement("span")
+                            if (token.color != null) {
+                                w.className = token.color
+                            }
+                            w.innerText = token.token
+                            line.appendChild(w)
+                        }
+                    }
+                }
+            }
+        }
+        main()
+    </script>
+</body>
+</html>

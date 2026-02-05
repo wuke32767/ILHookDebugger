@@ -105,3 +105,15 @@ and click Insert Breakpoint.
 
 ILHookDebugger_Helping_Sdep4=
 Done.
+
+ILHookDebugger_Settings_Decompiler_ServerMode=
+Server Mode
+ILHookDebugger_Settings_Help_Decompiler_ServerMode=
+Serves as ILHookViewer Website.
+
+ILHookDebugger_Settings_Decompiler_ServerModePort=
+Server Port
+ILHookDebugger_Settings_Help_Decompiler_ServerModePort=
+Port for Server Mode. Requires reboot.
+ILHookDebugger_Settings_Help_Decompiler_ServerModePort_NoEdit=
+Please edit from ImGui, commandline, or edit config file.

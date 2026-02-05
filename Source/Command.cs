@@ -21,6 +21,14 @@ namespace Celeste.Mod.ILHookDebugger
     }
     public static class Commands
     {
+        [Command("ILDebug_ServerPort", """
+            set server mode port.
+            """)]
+        public static void SetPort(int port)
+        {
+            ILHookDebuggerModule.Settings.Port = port;
+        }
+
         [Command("ILDebug", """
             Add or refresh debugger for a method.
             Only search for the Celeste/Monocle/Everest method by default.

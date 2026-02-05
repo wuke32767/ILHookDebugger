@@ -52,3 +52,16 @@ ILHookDebugger_Settings_DecompileHackFix=
 
 ILHookDebugger_Settings_DecompileHackFix_Help=
 修复一个算是来自 ilspy 的 bug。
+
+ILHookDebugger_Settings_Decompiler_ServerMode=
+服务器模式
+ILHookDebugger_Settings_Help_Decompiler_ServerMode=
+在本地网络上提供 ILHookViewer 服务。
+
+ILHookDebugger_Settings_Decompiler_ServerModePort=
+服务器模式端口
+ILHookDebugger_Settings_Help_Decompiler_ServerModePort=
+服务器模式使用的端口。需要重启。
+ILHookDebugger_Settings_Help_Decompiler_ServerModePort_NoEdit=
+请从 ImGui 界面或者命令行编辑，或者手动修改配置文件。
+

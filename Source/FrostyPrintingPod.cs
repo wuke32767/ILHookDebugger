@@ -274,6 +274,20 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 var (hasEd, src) = ILHookDebuggerModule.CheckEditor.Value;
                 var (hasdecom, fromd) = ILHookDebuggerModule.CheckDecompiler.Value;
 
+                cur = ILHookDebuggerModule.Settings.ServerMode;
+                if (ImGui.Checkbox("Server Mode", ref cur))
+                {
+                    ILHookDebuggerModule.Settings.ServerMode = cur;
+                }
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_Help_Decompiler_ServerMode", lang));
+                ImGui.SameLine();
+                int curri = ILHookDebuggerModule.Settings.Port;
+                if (ImGui.InputInt("Server Port", ref curri))
+                {
+                    ILHookDebuggerModule.Settings.Port = curri;
+                }
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_Help_Decompiler_ServerModePort", lang));
+
                 if (hasdecom)
                 {
                     cur = ILHookDebuggerModule.Settings.OpenInEditor;

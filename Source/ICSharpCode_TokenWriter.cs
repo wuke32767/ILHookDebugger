@@ -445,6 +445,20 @@ namespace Celeste.Mod.ILHookDebugger
 
         public PaletteIndex Current { get; set; } = (PaletteIndex)blank;
     }
+    sealed class CssColor : IPalette, IEditorColor<string?>
+    {
+        public void Receive(int index)
+        {
+            Current = $"CssClass{index}";
+        }
+
+        public void Done()
+        {
+            Current = null;
+        }
+
+        public string? Current { get; set; } = null;
+    }
     class EditorTextWriter<T>() : TextWriter
     {
         public override Encoding Encoding { get => Encoding.UTF8; }
@@ -499,6 +513,59 @@ namespace Celeste.Mod.ILHookDebugger
             {
                 AddColor(i);
             }
+            colors.Add([]);
+        }
+    }
+
+    public record struct Token<T>(string token, T color);
+    class TokenBasedTextWriter<T>() : TextWriter
+    {
+        public override Encoding Encoding { get => Encoding.UTF8; }
+        public List<List<Token<T>>> colors = [[]];
+        public required IEditorColor<T> Palette;
+
+        public override void Write(char value)
+        {
+            if (value == '\r')
+            {
+                return;
+            }
+            AddColor(value.ToString());
+        }
+        public void AddColor(string value)
+        {
+            foreach (var i in value.Split('\n').SelectMany(x => (IEnumerable<string>)["\n", x]).Skip(1))
+            {
+                if (i != "\n")
+                {
+                    colors[^1].Add(new(i, Palette.Current));
+                }
+                else
+                {
+                    colors.Add([]);
+                }
+            }
+        }
+
+        public override void Write(string? value)
+        {
+            if (value == null)
+            {
+                return;
+            }
+            value = value.Replace("\r", null);
+
+            AddColor(value);
+        }
+
+        public override void WriteLine(string? value)
+        {
+            if (value == null)
+            {
+                return;
+            }
+            value = value.Replace("\r", null);
+            AddColor(value);
             colors.Add([]);
         }
     }
