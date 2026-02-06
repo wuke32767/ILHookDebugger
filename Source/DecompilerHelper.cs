@@ -50,8 +50,8 @@ namespace Celeste.Mod.ILHookDebugger
             }
             if (AssemblyLoadContext.GetLoadContext(maybe) is not EverestModuleAssemblyContext context)
             {
-                var dll = Path.Combine(Everest.PathGame, reference.Name + ".dll");
-                return LoadFile(dll);
+                var p = reference.Name + ".dll";
+                return LoadFile(Path.Combine(Everest.PathGame, p)) ?? LoadFile(maybe.Location);
             }
             var mod = context.ModuleMeta.Name;
 
