@@ -240,15 +240,17 @@
         <h2>
             Method:
         </h2>
-        <select id="selector" style="max-width:80vw">
-            <option>please select</option>
+        <select id="selector" style="max-width:fit-content">
         </select>
         <div id="msg" style="color: yellow">
 
         </div>
-        <div id="hook" style="display:flex;flex-direction:column;overflow-x:auto">
+        <div id="hook" style="display:flex;flex-direction:column;overflow-x:auto;padding-bottom:1.5ch">
 
         </div>
+        <button id="refresh" style="display: none;width:fit-content">
+            refresh
+        </button>
         <pre id="il" style="display:flex;flex-direction:column;overflow-x:auto">
 
         </pre>
@@ -259,11 +261,14 @@
     </div>
     <script async>
         async function main() {
+            let sel = document.getElementById("selector")
+            let opt = document.createElement("option")
+            opt.innerText = "please select"
+            sel.appendChild(opt)
             let list = await fetch("/list")
             let ll = await list.json()
             ll = ll.map((r, i) => [r, i]).sort((x, y) => x[0] < y[0] ? -1 : x[0] == y[0] ? 0 : 1)
             let c = []
-            let sel = document.getElementById("selector")
             for (var i = 0; i < ll.length; i++) {
                 let ai = ll[i][1]
                 let name = ll[i][0]
@@ -272,20 +277,25 @@
                 op.innerText = name
                 sel.appendChild(op)
             }
-            sel.onchange = async (event) => {
-                let ai = Number(event.target.value)
+            async function onch(ai) {
                 let name = ll[ai][0]
                 let msg = document.getElementById("msg")
                 msg.innerHTML = ""
                 msg.innerText = "working..."
 
+                let check = Array.from(document.querySelectorAll("#hook .ilhookfilter")).filter(u => !u.checked).map(u => u.value)
+
                 let h = await fetch("/method", {
                     body: JSON.stringify({
-                        hint: ai.toString(),
+                        hint: ai,
                         name: name,
+                        disabled: check,
                     }),
                     method: "POST",
                 })
+                let button = document.getElementById("refresh")
+                button.style.display = "none"
+
                 let js = await h.json()
                 let dd = document.getElementById("decom")
                 dd.innerHTML = ""
@@ -296,15 +306,36 @@
 
                 msg.innerText = js.message.join("\n")
 
-                let ons = js.ons.map(a => "On: " + a).concat(js.ils.map(b => "IL: " + b))
+                let ons = js.ons
                 for (var i = 0; i < ons.length; i++) {
                     let p = document.createElement("div")
-                    p.innerText = ons[i]
+                    p.innerText = "On: " + ons[i]
+                    hook.appendChild(p)
+                }
+                ons = js.ils
+                for (var i = 0; i < ons.length; i++) {
+                    let p = document.createElement("div")
+                    let c = document.createElement("input")
+                    let l = document.createElement("label")
+
+                    let s = ons[i].name
+                    let d = ons[i].disabled
+                    c.type = "checkbox"
+                    c.value = s
+                    c.className = "ilhookfilter"
+                    c.id = `${i}_${s}`
+                    c.checked = !d
+                    l.htmlFor = c.id
+                    l.innerText = "IL: " + s
+                    p.appendChild(c)
+                    p.appendChild(l)
                     hook.appendChild(p)
                 }
                 if (js.ils.length == 0) {
                     return
                 }
+                button.style.display = null
+
                 let diff = js.diff
                 for (var i = 0; i < diff.length; i++) {
                     let instr = diff[i];
@@ -399,6 +430,10 @@
                         }
                     }
                 }
+            }
+            sel.onchange = event => onch(Number(event.target.value))
+            document.getElementById("refresh").onclick = event => {
+                onch(Number(sel.value))
             }
         }
         main()

@@ -1,7 +1,9 @@
 ﻿using Celeste.Mod.ILHookDebugger.MappingUtils;
+using Celeste.Mod.UI;
 using ICSharpCode.Decompiler.CSharp.OutputVisitor;
 using ICSharpCode.Decompiler.IL;
 using Mono.Cecil.Cil;
+using Monocle;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using MonoMod.Utils;
@@ -34,17 +36,24 @@ namespace Celeste.Mod.ILHookDebugger
                     mods = Everest.Modules.Select(x => new { name = x.Metadata.Name, version = x.Metadata.Version }),
                 });
         };
+        public class Reqwest
+        {
+            public string? name { get; set; }
+            public int? hint { get; set; }
+            public HashSet<string> disabled { get; set; } = [];
+        }
         public static Action Get(HttpListenerContext http) => () =>
         {
             //var q = http.Request.QueryString;
-            Dictionary<string, string> q = [];
+            Reqwest? q = null;
             try
             {
-                q = JsonSerializer.Deserialize<Dictionary<string, string>>(http.Request.InputStream) ?? q;
+                q = JsonSerializer.Deserialize<Reqwest>(http.Request.InputStream);
             }
             catch { }
-            var n = q.GetValueOrDefault("name");
-            if (int.TryParse(q.GetValueOrDefault("hint"), out var hint)
+            q ??= new();
+            var n = q.name;
+            if (q.hint is { } hint
                 && MiGui.GetEverHookedMethods().ElementAtOrDefault(hint) is { } method
                 && method.GetMethodNameForDB() == n)
             {
@@ -66,11 +75,20 @@ namespace Celeste.Mod.ILHookDebugger
 
             Dictionary<string, object> serialize = [];
             List<string> ourmessage = [];
+            if (Engine.Scene is null or OverworldLoader or AutoModUpdater or GameLoader)
+            {
+                ourmessage.Add("It seems like the game is still loading. Results may not be accurate.");
+            }
             serialize["message"] = ourmessage;
             try
             {
-                var ils = hooked.Select(x => x.ManipulatorMethod.GetMethodNameForDB()).ToArray();
-                serialize["ils"] = ils;
+                var d = q.disabled;
+                var ils = hooked.Select(x =>
+                {
+                    var n = x.ManipulatorMethod.GetMethodNameForDB();
+                    return new { name = n, disabled = d.Contains(n), raw = x, };
+                }).ToArray();
+                serialize["ils"] = ils.Select(x => new { x.name, x.disabled });
                 serialize["ons"] = DetourManager.GetDetourInfo(method).Detours.Select(x => x.Entry.GetMethodNameForDB()).ToArray();
                 if (ils.Length > 0)
                 {
@@ -89,7 +107,7 @@ namespace Celeste.Mod.ILHookDebugger
                                 instr.Operand = targets.Select(t => il.DefineLabel(t)).ToArray();
                         }
                     }
-                    foreach (var hook in hooked)
+                    foreach (var hook in ils.Where(x => !x.disabled).Select(x => x.raw))
                     {
                         var manip = DynamicData.For(DynamicData.For(hook).Get("hook")!).Get<ILContext.Manipulator>("Manip")!;
                         if (manip.Method.DeclaringType?.Assembly != typeof(Decompilation).Assembly)
