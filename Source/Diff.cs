@@ -31,11 +31,11 @@ namespace Celeste.Mod.ILHookDebugger
                 return new(i.OpCode, i.Operand);
             }
         }
-        public record struct Annotation(Status stat, string? by = null, string? And = null)
+        public record struct Annotation(Status stat, System.Reflection.MethodBase? by = null, System.Reflection.MethodBase? And = null)
         {
-            internal readonly List<string> GetSrc()
+            internal readonly List<System.Reflection.MethodBase> GetSrc()
             {
-                List<string> src = [];
+                List<System.Reflection.MethodBase> src = [];
                 if (by is { } b)
                 {
                     src.Add(b);
@@ -66,6 +66,8 @@ namespace Celeste.Mod.ILHookDebugger
         // all instructions, excludes removed instrs.
         // sometimes contains removed instrs, but who cares.
         HashSet<Instruction> instrs;
+        public Exception? exception = null;
+        public System.Reflection.MethodBase when = null!;
         internal Diff(ILContext il)
         {
             instructions = il.Instrs.Select(x => new Annotated(x, new(default))).ToList();
@@ -73,7 +75,22 @@ namespace Celeste.Mod.ILHookDebugger
             instrs = il.Instrs.ToHashSet();
         }
 
-        internal void Update(ILContext il, string user)
+        internal void Update(ILContext il, System.Reflection.MethodBase user)
+        {
+            if (exception is null)
+            {
+                try
+                {
+                    UpdateInternal(il, user);
+                }
+                catch (Exception ex)
+                {
+                    exception = ex;
+                    when = user;
+                }
+            }
+        }
+        internal void UpdateInternal(ILContext il, System.Reflection.MethodBase user)
         {
             Annotated dymmy = new(default!, default, default);
             var cur = il.Instrs;
@@ -272,7 +289,7 @@ namespace Celeste.Mod.ILHookDebugger
                 }
             }
 
-            void removed(string user, Annotated i)
+            void removed(System.Reflection.MethodBase user, Annotated i)
             {
                 Annotation anon = i.Anon;
                 anon.stat |= Status.Removed | Status.NotInArray;
@@ -300,7 +317,6 @@ namespace Celeste.Mod.ILHookDebugger
                 }
             }
         }
-        static System.Reflection.MethodInfo getvalue = typeof(DynamicReferenceManager).GetMethod("GetValueTUnsafe", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
         internal object GetResult()
         {
             Dictionary<Instruction, object?> drm = [];
@@ -310,9 +326,9 @@ namespace Celeste.Mod.ILHookDebugger
                 var b = instructions[i + 1];
                 var c = instructions[i + 2];
                 if (a.Instr.MatchLdcI4(out var ax) && b.Instr.MatchLdcI4(out var bx) && c.Instr.MatchCall(out var cm) &&
-                    cm is GenericInstanceMethod gcm && gcm.ElementMethod.Is(getvalue))
+                    cm is GenericInstanceMethod gcm && gcm.ElementMethod.Is(ControlPanel.getvalue))
                 {
-                    drm[c.Instr] = getvalue.MakeGenericMethod(gcm.GenericArguments[0].ResolveReflection()).Invoke(null, [ax, bx]);
+                    drm[c.Instr] = ControlPanel.getvalue.MakeGenericMethod(gcm.GenericArguments[0].ResolveReflection()).Invoke(null, [ax, bx]);
                 }
             }
             string mis(Status s)
@@ -332,6 +348,7 @@ namespace Celeste.Mod.ILHookDebugger
                 }
                 return b.ToString();
             }
+            Dictionary<System.Reflection.MethodBase, string> cache = [];
             return instructions.Select(x =>
                 new
                 {
@@ -347,7 +364,14 @@ namespace Celeste.Mod.ILHookDebugger
                         Instruction[] ixs => ixs.Select(x => x.Offset).ToArray(),
                         _ => [],
                     },
-                    src = x.Anon.GetSrc(),
+                    src = x.Anon.GetSrc().Select(x =>
+                    {
+                        if (!cache.TryGetValue(x, out var r))
+                        {
+                            cache.Add(x, r = x.GetMethodNameForDB());
+                        }
+                        return r;
+                    }),
                 }
             ).ToArray();
         }

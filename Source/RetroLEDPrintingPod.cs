@@ -93,44 +93,25 @@ namespace Celeste.Mod.ILHookDebugger
                 if (ils.Length > 0)
                 {
                     using var il = new ILContext(dmd.Definition);
-
-                    Cecils(il);
+                    ControlPanel.Cecils(il);
                     var dif = new Diff(il);
-                    bool diffgood = true;
-                    static void Cecils(ILContext il)
-                    {
-                        foreach (var instr in il.Instrs)
-                        {
-                            if (instr.Operand is Instruction target)
-                                instr.Operand = il.DefineLabel(target);
-                            else if (instr.Operand is Instruction[] targets)
-                                instr.Operand = targets.Select(t => il.DefineLabel(t)).ToArray();
-                        }
-                    }
                     foreach (var hook in ils.Where(x => !x.disabled).Select(x => x.raw))
                     {
                         var manip = DynamicData.For(DynamicData.For(hook).Get("hook")!).Get<ILContext.Manipulator>("Manip")!;
                         if (manip.Method.DeclaringType?.Assembly != typeof(Decompilation).Assembly)
                         {
                             manip(il);
-                            Cecils(il);
-                            try
-                            {
-                                if (diffgood)
-                                {
-                                    dif.Update(il, manip.Method.GetMethodNameForDB());
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                diffgood = false;
-                                ourmessage.Add("failed to diff method. this *may* indicates that one of our ilhooks is too fancy.");
-                                ourmessage.Add(manip.Method.GetMethodNameForDB());
-                                ourmessage.Add(ex.ToString());
-                            }
+                            ControlPanel.Cecils(il);
+                            dif.Update(il, manip.Method);
                         }
                     }
-                    if (diffgood)
+                    if (dif.exception is { } ex2)
+                    {
+                        ourmessage.Add("failed to diff method. this *may* indicates that one of our ilhooks is too fancy.");
+                        ourmessage.Add(dif.when.GetMethodNameForDB());
+                        ourmessage.Add(ex2.ToString());
+                    }
+                    else
                     {
                         dif.Final(il);
                         serialize["diff"] = dif.GetResult();
@@ -139,7 +120,7 @@ namespace Celeste.Mod.ILHookDebugger
                     {
                         try
                         {
-                            Cecils(il);
+                            ControlPanel.Cecils(il);
                             PrintingPod.Process(method, il, ILHookDebuggerModule.ILSpyFeature);
                             var notbad = Extract(dmd);
                             serialize["decompile"] = notbad;

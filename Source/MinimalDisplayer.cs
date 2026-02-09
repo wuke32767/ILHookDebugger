@@ -1,4 +1,5 @@
-﻿using ImGuiNET;
+﻿using ImGuiColorTextEditNet;
+using ImGuiNET;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,8 +9,25 @@ using System.Threading.Tasks;
 
 namespace Celeste.Mod.ILHookDebugger
 {
-    internal sealed class MinimalDisplayer(IReadOnlyList<string> strings, IReadOnlyList<IReadOnlyList<Color>> colors)
+    public interface IExtraWindow
     {
+        public void Render();
+        public string Title { get; }
+    }
+
+    public class EditorDisplayer(TextEditor editor, string title) : IExtraWindow
+    {
+        public void Render()
+        {
+            editor.Render("");
+        }
+        public string Title { get => title; }
+    }
+
+    internal sealed class MinimalDisplayer(IReadOnlyList<string> strings, IReadOnlyList<IReadOnlyList<Color>> colors, string title) : IExtraWindow
+    {
+        public string Title { get => title; }
+
         public void Render()
         {
             if (ImGui.Button("Copy All"))

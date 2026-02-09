@@ -43,19 +43,28 @@ namespace Celeste.Mod.ILHookDebugger
     {
         public MetadataFile? Resolve(IAssemblyReference reference)
         {
-            var maybe = AppDomain.CurrentDomain.GetAssemblies().Reversed().FirstOrDefault(x => x.GetName().Name == reference.Name);
+            string name = reference.Name;
+            return Resolve(name);
+
+        }
+        public static MetadataFile? Resolve(string? name)
+        {
+            var maybe = AppDomain.CurrentDomain.GetAssemblies().Reversed().FirstOrDefault(x =>
+            {
+                return x.GetName().Name == name;
+            });
             if (maybe is null)
             {
                 return null;
             }
             if (AssemblyLoadContext.GetLoadContext(maybe) is not EverestModuleAssemblyContext context)
             {
-                var p = reference.Name + ".dll";
+                var p = name + ".dll";
                 return LoadFile(Path.Combine(Everest.PathGame, p)) ?? LoadFile(maybe.Location);
             }
             var mod = context.ModuleMeta.Name;
 
-            return LoadFile(Path.Combine(Everest.Loader.PathCache, $"{mod}.{reference.Name}.dll"));
+            return LoadFile(Path.Combine(Everest.Loader.PathCache, $"{mod}.{name}.dll"));
 
             static MetadataFile? LoadFile(string dll)
             {
@@ -87,6 +96,38 @@ namespace Celeste.Mod.ILHookDebugger
     }
     internal static class Decompilation
     {
+        internal static (SyntaxTree, CSharpDecompiler) NonHook(MethodBase target)
+        {
+            var f = DecompilerResolver.Resolve(target.Module.Assembly.GetName().Name);
+            var decompiler = new CSharpDecompiler(f,
+                ILHookDebuggerModule.Settings.UseDecompileResolver ? new DecompilerResolver() : new NullResolver(),
+                new DecompilerSettings() { UseLambdaSyntax = true, });
+
+            var t = target.DeclaringType;
+
+            bool IsSame(Type? t, ICSharpCode.Decompiler.TypeSystem.ITypeDefinition? tx)
+            {
+                if (t == null || tx == null)
+                {
+                    if (t == null && tx == null)
+                    {
+                        return true;
+                    }
+                    return false;
+                }
+                if (t.Name != tx.Name)
+                {
+                    return false;
+                }
+                return IsSame(t.DeclaringType, tx.DeclaringTypeDefinition)
+                    && t.IsNested == (tx.DeclaringTypeDefinition is { })
+                    && (!t.IsNested || t.Namespace == tx.Namespace);
+            }
+            var found = decompiler.TypeSystem.MainModule.TypeDefinitions.First(x => IsSame(t, x));
+            var o = target.GetParameters().Length;
+
+            return (decompiler.Decompile(found.Methods.Where(x => x.Name == target.Name && x.Parameters.Count == o).Select(x => x.MetadataToken)), decompiler);
+        }
         internal static (SyntaxTree, CSharpDecompiler) FromMethod(MethodBase target)
         {
             using DynamicMethodDefinition dmd = new(target);
@@ -124,7 +165,7 @@ namespace Celeste.Mod.ILHookDebugger
                 new DecompilerSettings() { UseLambdaSyntax = true, });
 
             var found = decompiler.TypeSystem.MainModule.TypeDefinitions.First(x => x.Name == name);
-            return (decompiler.DecompileType(new(found.FullName)), decompiler);
+            return (decompiler.DecompileType(found.FullTypeName), decompiler);
         }
     }
 }

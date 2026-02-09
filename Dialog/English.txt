@@ -117,3 +117,22 @@ ILHookDebugger_Settings_Help_Decompiler_ServerModePort=
 Port for Server Mode. Requires reboot.
 ILHookDebugger_Settings_Help_Decompiler_ServerModePort_NoEdit=
 Please edit from ImGui, commandline, or edit config file.
+
+ILHookDebugger_Tooltips_Enable=
+Enable or disable an hook.
+Implementation is the same as Mapping utils. Won't sync between mu and ilhd.
+Sometimes changes hook order.
+
+ILHookDebugger_Tooltips_EnableV2=
+Enable or disable an hook.
+Won't sync between mu and ilhd. (surely)
+Never changes hook order.
+
+ILHook only, Toggle this will prevent the given method/assembly from being collected.
+That is, sometimes causes memory issue when hot code reloading.
+
+ILHookDebugger_Tooltips_Hide=
+Only hide for diff.
+
+ILHookDebugger_Tooltips_Decompile=
+Click to decompile this method.

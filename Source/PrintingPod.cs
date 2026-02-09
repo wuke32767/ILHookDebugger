@@ -178,9 +178,9 @@ namespace Celeste.Mod.ILHookDebugger
             }
         }
     }
-
     class Cleanup(MethodBase mi, Backup b) : Transform
     {
+        static Type iacttype = typeof(DynamicReferenceManager).Assembly.GetType("System.Runtime.CompilerServices.IgnoresAccessChecksToAttribute")!;
         internal override void Run(ILContext il, IDEFeatures feat)
         {
             int unique = System.Threading.Interlocked.Increment(ref PrintingPod.unique);
@@ -188,7 +188,7 @@ namespace Celeste.Mod.ILHookDebugger
             var dmdtype = md.DeclaringType;
             var mdm = md.Module;
             var asm = mdm.Assembly;
-            var _iact = mdm.ImportReference(typeof(IgnoresAccessChecksToAttribute)).Resolve();
+            var _iact = mdm.ImportReference(iacttype).Resolve();
             var iact = mdm.ImportReference(_iact.GetConstructors().First());
 
             md.Name = mi.Name;
@@ -451,7 +451,7 @@ namespace Celeste.Mod.ILHookDebugger
         internal static List<Transform> Process(MethodBase mi, ILContext il, IDEFeatures feat)
         {
             ILCursor ic = new(il);
-            
+
             var b = new Backup();
             var tacache = new TypeAttr();
             List<Transform> tr = [

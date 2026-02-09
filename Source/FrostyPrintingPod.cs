@@ -19,6 +19,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using static Celeste.ClutterBlock;
 
 namespace Celeste.Mod.ILHookDebugger.MappingUtils
@@ -78,12 +79,17 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             }
             return false;
         }
-        List<(string name, object content, int id)> decompiled = [];
-        static object CreateEditor(SyntaxTree content, ICSharpCode.Decompiler.CSharp.CSharpDecompiler decomp)
+        internal List<IExtraWindow> decompiled = [];
+        static int idl = 0;
+        internal string GetNextWindowName(string name)
+        {
+            return $"{name}##ILHookDebugger{idl++}";
+        }
+        internal static IExtraWindow CreateEditor(SyntaxTree content, ICSharpCode.Decompiler.CSharp.CSharpDecompiler decomp, string v)
         {
             if (ILHookDebuggerModule.Settings.UseTextEditor && ILHookDebuggerModule.CheckEditor.Value.Item1)
             {
-                static object Extract(SyntaxTree content, ICSharpCode.Decompiler.CSharp.CSharpDecompiler decomp)
+                static IExtraWindow Extract(SyntaxTree content, ICSharpCode.Decompiler.CSharp.CSharpDecompiler decomp, string v)
                 {
                     ExternalCustomEditorColor color = new();
                     using EditorTextWriter<PaletteIndex> o = new() { Palette = color, };
@@ -92,9 +98,9 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
 
                     var r = new TextEditor() { AllText = o.str.ToString(), SyntaxHighlighter = new SyntaxTreeHighlighter(o.colors), Options = { IsReadOnly = true } };
                     ExternalCustomEditorColor.InjectColor(r);
-                    return r;
+                    return new EditorDisplayer(r, v);
                 }
-                return Extract(content, decomp);
+                return Extract(content, decomp, v);
             }
             else
             {
@@ -104,7 +110,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 content.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
                 var str = o.str.ToString();
 
-                return new MinimalDisplayer(str.Split('\n'), o.colors);
+                return new MinimalDisplayer(str.Split('\n'), o.colors, v);
             }
         }
 
@@ -113,28 +119,14 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             base.Render();
 
             int remove = -1;
-            foreach (var ((name, content, id), index) in decompiled.Select((x, i) => (x, i)))
+            for (int index = 0; index < decompiled.Count; index++)
             {
+                var content = decompiled[index];
                 bool open = true;
                 ImGui.SetNextWindowSize(new(150 * 2.5f, ImGui.GetMainViewport().Size.Y / 4), ImGuiCond.FirstUseEver);
-                if (ImGui.Begin($"{name}##ILHookDebugger{id}", ref open, ImGuiWindowFlags.HorizontalScrollbar))
+                if (ImGui.Begin(content.Title, ref open, ImGuiWindowFlags.HorizontalScrollbar))
                 {
-                    if (ILHookDebuggerModule.CheckEditor.Value.Item1)
-                    {
-                        Extract(content);
-                        static void Extract(object content)
-                        {
-                            if (content is TextEditor editor)
-                            {
-                                editor.Render("");
-                            }
-                        }
-                    }
-                    if (content is MinimalDisplayer displayer)
-                    {
-                        displayer.Render();
-                    }
-
+                    content.Render();
                     ImGui.End();
                 }
                 if (!open)
@@ -483,12 +475,12 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                         {
                             if (ILHookDebuggerModule.Settings.OpenInEditor)
                             {
-                                Extract(me, fromd);
-                                void Extract(MethodBase target, string from)
+                                Extract(me, fromd, GetNextWindowName(na));
+                                void Extract(MethodBase target, string from, string v)
                                 {
                                     Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
                                     var (ast, decomp) = Decompilation.FromMethod(target);
-                                    decompiled.Add((na, CreateEditor(ast, decomp), decompiled.LastOrDefault().id + 1));
+                                    decompiled.Add(CreateEditor(ast, decomp, v));
                                 }
                             }
                             else
@@ -504,6 +496,12 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                             }
                             See(me);
                         }
+                        ImGui.SameLine();
+                        if (ImGui.Button(Look(me.CustomAttributes) ? "Done" : ("Check IL##" + na)))
+                        {
+                            decompiled.Add(new ControlPanel(GetNextWindowName(na), me));
+                        }
+
                         ImGui.EndDisabled();
                         if (hasdecom)
                         {
@@ -567,7 +565,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                                     {
                                         Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
                                         var (ast, decomp) = Decompilation.FromRunning(target);
-                                        decompiled.Add((target.TypeName!, CreateEditor(ast, decomp), decompiled.LastOrDefault().id + 1));
+                                        decompiled.Add(CreateEditor(ast, decomp, GetNextWindowName(target.TypeName!)));
                                     }
                                 }
                                 else
