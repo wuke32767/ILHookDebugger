@@ -7,16 +7,159 @@ using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using MonoMod.Utils;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Celeste.Mod.ILHookDebugger
 {
+    static partial class Helpery
+    {
+        static FieldInfo? m_scope;
+        static Type? m_dynamicscope;
+        static FieldInfo? m_ILStream;
+        static FieldInfo? m_tokens;
+
+        static FieldInfo? m_methodHandle;
+
+        internal static void ThrowIf([NotNull] object? src, [CallerArgumentExpression(nameof(src))] string caller = default!)
+        {
+            if (src is null)
+            {
+                throw new NullReferenceException(caller);
+            }
+        }
+        static BindingFlags bf = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+        internal static MethodBase TryGetActualEntry(this MethodBase method)
+        {
+            try
+            {
+                if (method is DynamicMethod dm)
+                {
+                    var dil = dm.GetILGenerator();
+                    m_scope ??= dil.GetType().GetField("m_scope", bf);
+                    ThrowIf(m_scope);
+                    m_dynamicscope ??= m_scope.FieldType;
+                    ThrowIf(m_dynamicscope);
+                    m_ILStream ??= dil.GetType().BaseType!.GetField("m_ILStream", bf);
+                    ThrowIf(m_ILStream);
+                    m_tokens ??= m_dynamicscope.GetField("m_tokens", bf);
+                    ThrowIf(m_tokens);
+
+                    var ilstream = m_ILStream.GetValue(dil) as byte[];
+                    ThrowIf(ilstream);
+                    var scope = m_scope.GetValue(dil);
+                    ThrowIf(scope);
+                    var tokens = m_tokens.GetValue(scope) as List<object>;
+                    ThrowIf(tokens);
+
+                    var ils = ilstream.AsSpan();
+                    static bool TrimLdcI4(ref Span<byte> self)
+                    {
+                        if (self is [0x20, _, _, _, _, ..])
+                        {
+                            self = self[5..];
+                        }
+                        else if (self is [>= 0x15 and <= 0x1e, ..])
+                        {
+                            self = self[1..];
+                        }
+                        else if (self is [0x1f, _, ..])
+                        {
+                            self = self[2..];
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                        return true;
+                    }
+                    static void TrimLdRef(ref Span<byte> self)
+                    {
+                        var a = TrimLdcI4(ref self);
+                        var b = TrimLdcI4(ref self);
+                        if (a != b || (a && self is not [0x28, _, _, _, _, ..]))
+                        {
+                            throw new InvalidOperationException("not ldref");
+                        }
+                        if (a)
+                        {
+                            self = self[5..];
+                        }
+                    }
+                    TrimLdRef(ref ils);
+                    TrimLdRef(ref ils);
+                    var c = dm.GetParameters().Length;
+                    static void throwparam() => throw new InvalidOperationException("param count does not match");
+                    static void TrimLdarg(ref Span<byte> self, int hint)
+                    {
+                        var x = (byte)(hint & 0xff);
+                        var y = (byte)((hint >> 8) & 0xff);
+                        if (self is [0xFE, 0x09, { } a, { } b, ..] _ && a == x && b == y) // little endian
+                        {
+                            self = self[4..];
+                        }
+                        else if (self is [0x0e, { } c, ..] && c == hint)
+                        {
+                            self = self[2..];
+                        }
+                        else if (self is [{ } d and >= 0x02 and <= 0x05, ..] && hint + 0x02 == d)
+                        {
+                            self = self[1..];
+                        }
+                        else
+                        {
+                            throwparam();
+                        }
+                    }
+                    for (int i = 0; i < c; i++)
+                    {
+                        TrimLdarg(ref ils, i);
+                    }
+                    if (ils[0] != 0x28)
+                    {
+                        throwparam();
+                    }
+                    ils = ils[1..];
+                    var token = BinaryPrimitives.ReadInt32LittleEndian(ils) & 0xffffff;
+
+                    static MethodInfo? Generic(object o)
+                    {
+                        var a = o.GetType();
+                        if (a.GetType().Name == "GenericMethodInfo")
+                        {
+                            m_methodHandle ??= a.GetField("m_methodHandle", bf);
+                            ThrowIf(m_methodHandle);
+                            return m_methodHandle.GetValue(o) as MethodInfo;
+                        }
+                        return null;
+                    }
+                    return tokens[token] switch
+                    {
+                        RuntimeMethodHandle r => MethodBase.GetMethodFromHandle(r) as MethodInfo ?? method,
+                        DynamicMethod d => d,
+                        { } what => Generic(what) ?? method,
+                        _ => method,
+                    };
+                }
+                else
+                {
+                    return method;
+                }
+            }
+            catch
+            {
+                return method;
+            }
+        }
+    }
     internal class ControlPanel : IExtraWindow
     {
         public string Title { get; }
@@ -140,7 +283,7 @@ namespace Celeste.Mod.ILHookDebugger
                     MethodBase entry = hook.Entry;
                     if (cache[i].entry != entry)
                     {
-                        cache[i] = (entry.GetMethodNameForDB(), entry);
+                        cache[i] = (entry.TryGetActualEntry().GetMethodNameForDB(), entry);
                         shouldUpdate = true;
                     }
                     ImGui.Text("On");
@@ -346,13 +489,18 @@ namespace Celeste.Mod.ILHookDebugger
         }
         internal void MakeDecompile(MethodBase src, Language? language, string? cache = null)
         {
-            cache ??= src.GetMethodNameForDB();
             var (d, f) = ILHookDebuggerModule.CheckDecompiler.Value;
             if (d)
             {
                 ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_Decompile", language));
                 if (ImGui.IsItemClicked())
                 {
+                    src = src.TryGetActualEntry();
+                    cache ??= src.GetMethodNameForDB();
+                    if (src is DynamicMethod)
+                    {
+                        throw new NotImplementedException("source method is dynamic method, which is not supported.");
+                    }
                     Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {f}...");
                     var (ast, decomp) = Decompilation.NonHook(src);
                     if (ILHookDebuggerModule.Settings.OpenInEditor)

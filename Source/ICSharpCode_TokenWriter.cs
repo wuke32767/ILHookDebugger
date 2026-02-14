@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 
 namespace Celeste.Mod.ILHookDebugger
 {
-    static class Helpery
+    static partial class Helpery
     {
         public static T? PeekOrDefault<T>(this Stack<T> self)
         {

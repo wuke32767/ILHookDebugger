@@ -89,7 +89,7 @@ namespace Celeste.Mod.ILHookDebugger
                     return new { name = n, disabled = d.Contains(n), raw = x, };
                 }).ToArray();
                 serialize["ils"] = ils.Select(x => new { x.name, x.disabled });
-                serialize["ons"] = DetourManager.GetDetourInfo(method).Detours.Select(x => x.Entry.GetMethodNameForDB()).ToArray();
+                serialize["ons"] = DetourManager.GetDetourInfo(method).Detours.Select(x => x.Entry.TryGetActualEntry().GetMethodNameForDB()).ToArray();
                 if (ils.Length > 0)
                 {
                     using var il = new ILContext(dmd.Definition);
