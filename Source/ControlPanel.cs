@@ -18,6 +18,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
+using OPC = System.Reflection.Emit.OpCodes;
 namespace Celeste.Mod.ILHookDebugger
 {
     static partial class Helpery
@@ -27,7 +28,12 @@ namespace Celeste.Mod.ILHookDebugger
         static FieldInfo? m_ILStream;
         static FieldInfo? m_tokens;
 
-        static FieldInfo? m_methodHandle;
+        static Func<object, object>? get_scope;
+        static Func<object, byte[]>? get_ILStream;
+        static Func<object, List<object>>? get_tokens;
+
+        static Func<object, RuntimeMethodHandle>? get_methodHandle;
+        static Func<object, RuntimeTypeHandle>? get_context;
 
         internal static void ThrowIf([NotNull] object? src, [CallerArgumentExpression(nameof(src))] string caller = default!)
         {
@@ -37,6 +43,25 @@ namespace Celeste.Mod.ILHookDebugger
             }
         }
         static BindingFlags bf = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+
+        public static Func<object, T> CreateGetter<T>(this FieldInfo? field, [CallerArgumentExpression(nameof(field))] string caller = default!)
+        {
+            ThrowIf(field, caller);
+            var method = new DynamicMethod($"get_{field.Name}", typeof(T), [typeof(object), typeof(object)]);
+            var il = method.GetILGenerator();
+
+            il.Emit(OPC.Ldarg_1);
+            il.Emit(OPC.Castclass, field.DeclaringType!);
+            il.Emit(OPC.Ldfld, field);
+            if (field.FieldType.IsValueType && !typeof(T).IsValueType)
+            {
+                il.Emit(OPC.Box);
+            }
+            il.Emit(OPC.Ret);
+
+            return method.CreateDelegate<Func<object, T>>(field);
+        }
+
         internal static MethodBase TryGetActualEntry(this MethodBase method)
         {
             try
@@ -46,18 +71,15 @@ namespace Celeste.Mod.ILHookDebugger
                     var dil = dm.GetILGenerator();
                     m_scope ??= dil.GetType().GetField("m_scope", bf);
                     ThrowIf(m_scope);
-                    m_dynamicscope ??= m_scope.FieldType;
-                    ThrowIf(m_dynamicscope);
-                    m_ILStream ??= dil.GetType().BaseType!.GetField("m_ILStream", bf);
-                    ThrowIf(m_ILStream);
-                    m_tokens ??= m_dynamicscope.GetField("m_tokens", bf);
-                    ThrowIf(m_tokens);
+                    get_scope ??= m_scope.CreateGetter<object>();
+                    get_ILStream ??= dil.GetType().BaseType!.GetField("m_ILStream", bf).CreateGetter<byte[]>();
+                    get_tokens ??= m_scope.FieldType.GetField("m_tokens", bf).CreateGetter<List<object>>();
 
-                    var ilstream = m_ILStream.GetValue(dil) as byte[];
+                    var ilstream = get_ILStream(dil);
                     ThrowIf(ilstream);
-                    var scope = m_scope.GetValue(dil);
+                    var scope = get_scope(dil);
                     ThrowIf(scope);
-                    var tokens = m_tokens.GetValue(scope) as List<object>;
+                    var tokens = get_tokens(scope);
                     ThrowIf(tokens);
 
                     var ils = ilstream.AsSpan();
@@ -129,21 +151,24 @@ namespace Celeste.Mod.ILHookDebugger
                     }
                     ils = ils[1..];
                     var token = BinaryPrimitives.ReadInt32LittleEndian(ils) & 0xffffff;
-
-                    static MethodInfo? Generic(object o)
+                    if (ils[4..] is not [0x2A, ..])
+                    {
+                        throw new InvalidOperationException("not ret");
+                    }
+                    static MethodBase? Generic(object o)
                     {
                         var a = o.GetType();
                         if (a.GetType().Name == "GenericMethodInfo")
                         {
-                            m_methodHandle ??= a.GetField("m_methodHandle", bf);
-                            ThrowIf(m_methodHandle);
-                            return m_methodHandle.GetValue(o) as MethodInfo;
+                            get_methodHandle ??= a.GetField("m_methodHandle", bf).CreateGetter<RuntimeMethodHandle>();
+                            get_context ??= a.GetField("m_context", bf).CreateGetter<RuntimeTypeHandle>();
+                            return MethodBase.GetMethodFromHandle(get_methodHandle(o), get_context(o));
                         }
                         return null;
                     }
                     return tokens[token] switch
                     {
-                        RuntimeMethodHandle r => MethodBase.GetMethodFromHandle(r) as MethodInfo ?? method,
+                        RuntimeMethodHandle r => MethodBase.GetMethodFromHandle(r) ?? method,
                         DynamicMethod d => d,
                         { } what => Generic(what) ?? method,
                         _ => method,
