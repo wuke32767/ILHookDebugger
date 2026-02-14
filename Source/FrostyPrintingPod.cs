@@ -126,7 +126,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 ImGui.SetNextWindowSize(new(150 * 2.5f, ImGui.GetMainViewport().Size.Y / 4), ImGuiCond.FirstUseEver);
                 if (ImGui.Begin(content.Title, ref open, ImGuiWindowFlags.HorizontalScrollbar))
                 {
-                    content.Render();
+                    content.ProtectedRender();
                     ImGui.End();
                 }
                 if (!open)

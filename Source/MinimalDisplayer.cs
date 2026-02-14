@@ -9,26 +9,50 @@ using System.Threading.Tasks;
 
 namespace Celeste.Mod.ILHookDebugger
 {
-    public interface IExtraWindow
+    public abstract class IExtraWindow()
     {
-        public void Render();
-        public string Title { get; }
+        string? ex;
+        public void ProtectedRender()
+        {
+            if (ex != null)
+            {
+                ImGui.Text("error.");
+                ImGui.Text(ex.ToString());
+                if (ImGui.Button("OK"))
+                {
+                    ex = null;
+                }
+            }
+            else
+            {
+                try
+                {
+                    Render();
+                }
+                catch (Exception e)
+                {
+                    ex = e.ToString();
+                }
+            }
+        }
+        public abstract void Render();
+        public abstract string Title { get; }
     }
 
     public class EditorDisplayer(TextEditor editor, string title) : IExtraWindow
     {
-        public void Render()
+        public override void Render()
         {
             editor.Render("");
         }
-        public string Title { get => title; }
+        public override string Title { get => title; }
     }
 
     internal sealed class MinimalDisplayer(IReadOnlyList<string> strings, IReadOnlyList<IReadOnlyList<Color>> colors, string title) : IExtraWindow
     {
-        public string Title { get => title; }
+        public override string Title { get => title; }
 
-        public void Render()
+        public override void Render()
         {
             if (ImGui.Button("Copy All"))
             {

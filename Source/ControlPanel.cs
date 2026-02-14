@@ -162,7 +162,7 @@ namespace Celeste.Mod.ILHookDebugger
     }
     internal class ControlPanel : IExtraWindow
     {
-        public string Title { get; }
+        public override string Title { get; }
 
         static ConditionalWeakTable<MethodBase, ILHook> disablev2 = [];
         static ConditionalWeakTable<MethodBase, MonoMod.Core.ICoreDetour> disableonv2 = [];
@@ -190,7 +190,7 @@ namespace Celeste.Mod.ILHookDebugger
 
             var hooked = DetourManager.GetDetourInfo(method).ILHooks;
 
-            DetourManager.GetDetourInfo(method).Detours.Select(x => x.Entry.GetMethodNameForDB()).ToArray();
+            //DetourManager.GetDetourInfo(method).Detours.Select(x => x.Entry.GetMethodNameForDB()).ToArray();
             using var il = new ILContext(dmd.Definition);
             Cecils(il);
             var dif = new Diff(il);
@@ -258,7 +258,7 @@ namespace Celeste.Mod.ILHookDebugger
         List<(string name, MethodBase entry)> cache = [];
         List<(string name, MethodBase entry)> cache2 = [];
         List<Action> Delayed = [];
-        public unsafe void Render()
+        public override unsafe void Render()
         {
 
             if (Dialog.Languages?.TryGetValue("english", out var lang) != true)
@@ -269,206 +269,219 @@ namespace Celeste.Mod.ILHookDebugger
             bool shouldUpdate = false;
             if (ImGui.BeginTable("Hooks", 3, ImGuiTableFlags.Resizable | ImGuiTableFlags.RowBg))
             {
-                ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed);
-                ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None);
-                ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed);
-                var hooked = DetourManager.GetDetourInfo(method);
-                foreach (var (hook, i) in hooked.Detours.Concat(keeptrackedon.Select(x => x.Value)).Select((s, i) => (s, i)))
+                try
                 {
-                    ImGui.TableNextColumn();
-                    while (cache.Count <= i)
+                    ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed);
+                    ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None);
+                    ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed);
+                    var hooked = DetourManager.GetDetourInfo(method);
+                    foreach (var (hook, i) in hooked.Detours.Concat(keeptrackedon.Select(x => x.Value)).Select((s, i) => (s, i)))
                     {
-                        cache.Add(default!);
-                    }
-                    MethodBase entry = hook.Entry;
-                    if (cache[i].entry != entry)
-                    {
-                        cache[i] = (entry.TryGetActualEntry().GetMethodNameForDB(), entry);
-                        shouldUpdate = true;
-                    }
-                    ImGui.Text("On");
-                    ImGui.TableNextColumn();
-                    ImGui.Text(cache[i].name);
-                    MakeDecompile(entry, lang, cache[i].name);
-                    ImGui.TableNextColumn();
-                    bool state = hook.IsApplied;
-                    if (ImGui.Checkbox("Enable##on" + i.ToString(), ref state))
-                    {
-                        if (state)
+                        ImGui.TableNextColumn();
+                        while (cache.Count <= i)
                         {
-                            Delayed.Add(() =>
+                            cache.Add(default!);
+                        }
+                        MethodBase entry = hook.Entry;
+                        if (cache[i].entry != entry)
+                        {
+                            cache[i] = (entry.TryGetActualEntry().GetMethodNameForDB(), entry);
+                            shouldUpdate = true;
+                        }
+                        ImGui.Text("On");
+                        ImGui.TableNextColumn();
+                        ImGui.Text(cache[i].name);
+                        MakeDecompile(entry, lang, cache[i].name);
+                        ImGui.TableNextColumn();
+                        bool state = hook.IsApplied;
+                        if (ImGui.Checkbox("Enable##on" + i.ToString(), ref state))
+                        {
+                            if (state)
                             {
-                                hook.Apply();
-                                keeptrackedon.Remove(entry);
-                            });
-                        }
-                        else
-                        {
-                            Delayed.Add(() =>
+                                Delayed.Add(() =>
+                                {
+                                    hook.Apply();
+                                    keeptrackedon.Remove(entry);
+                                });
+                            }
+                            else
                             {
-                                hook.Undo();
-                                keeptrackedon.Add(entry, hook);
-                            });
+                                Delayed.Add(() =>
+                                {
+                                    hook.Undo();
+                                    keeptrackedon.Add(entry, hook);
+                                });
+                            }
                         }
+                        ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_Enable", lang));
+                        var f = disableonv2.TryGetValue(entry, out var h);
+                        state = !f;
+                        ImGui.SameLine();
+                        if (ImGui.Checkbox("EnableV2##on" + i.ToString(), ref state))
+                        {
+                            if (state != f)
+                            {
+                                throw new Exception("How?");
+                            }
+                            if (f)
+                            {
+                                h!.Dispose();
+                                disableonv2.Remove(entry);
+                            }
+                            else
+                            {
+                                disableonv2.Add(entry, MonoMod.Core.DetourFactory.Current.CreateDetour(new(hook.detour.InvokeTarget, hook.detour.NextTrampoline.TrampolineMethod)));
+                            }
+                        }
+                        ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_EnableV2", lang));
                     }
-                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_Enable", lang));
-                    var f = disableonv2.TryGetValue(entry, out var h);
-                    state = !f;
-                    ImGui.SameLine();
-                    if (ImGui.Checkbox("EnableV2##on" + i.ToString(), ref state))
+                    var d = Alloc(hooked.ILHooks.Count() - filter.Count).GetEnumerator();
+                    foreach (var (hook, i) in
+                        hooked.ILHooks.Concat(keeptrackedil.Select(x => x.Value))
+                        .Select((s, i) => (s, i)))
                     {
-                        if (state != f)
+                        ImGui.TableNextColumn();
+                        while (cache2.Count <= i)
                         {
-                            throw new Exception("How?");
+                            cache2.Add(default!);
                         }
-                        if (f)
+                        MethodBase entry = hook.ManipulatorMethod;
+                        bool filtered = filter.Contains(entry);
+                        if (cache2[i].entry != entry)
                         {
-                            h!.Dispose();
-                            disableonv2.Remove(entry);
+                            cache2[i] = (entry.GetMethodNameForDB(), entry);
+                            shouldUpdate = true;
                         }
-                        else
+                        ImGui.Text("IL");
+                        ImGui.TableNextColumn();
+                        var col = new Vector4(0.6f, 0.6f, 0.6f, 1);
+                        if (!filtered && hook.IsApplied)
                         {
-                            disableonv2.Add(entry, MonoMod.Core.DetourFactory.Current.CreateDetour(new(hook.detour.InvokeTarget, hook.detour.NextTrampoline.TrampolineMethod)));
+                            d.MoveNext();
+                            col = d.Current;
                         }
+                        ImGui.TextColored(col, cache2[i].name);
+                        MakeDecompile(entry, lang, cache2[i].name);
+                        ImGui.TableNextColumn();
+                        bool state = hook.IsApplied;
+                        if (ImGui.Checkbox("Enable##il" + i.ToString(), ref state))
+                        {
+                            shouldUpdate = true;
+                            if (state)
+                            {
+                                Delayed.Add(() =>
+                                {
+                                    hook.Apply();
+                                    keeptrackedil.Remove(entry);
+                                });
+                            }
+                            else
+                            {
+                                Delayed.Add(() =>
+                                {
+                                    hook.Undo();
+                                    keeptrackedil.Add(entry, hook);
+                                });
+                            }
+                        }
+                        ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_Enable", lang));
+                        var f = disablev2.TryGetValue(entry, out var h);
+                        state = !f;
+                        ImGui.SameLine();
+                        if (ImGui.Checkbox("EnableV2##il" + i.ToString(), ref state))
+                        {
+                            shouldUpdate = true;
+                            if (state != f)
+                            {
+                                throw new Exception("How?");
+                            }
+                            if (f)
+                            {
+                                h!.Dispose();
+                                disablev2.Remove(entry);
+                            }
+                            else
+                            {
+                                disablev2.Add(entry, new(entry, il =>
+                                {
+                                    il.Instrs.Clear();
+                                    il.Method.Body.ExceptionHandlers.Clear();
+                                    ILCursor ic = new(il);
+                                    ic.EmitRet();
+                                }));
+                            }
+                        }
+                        ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_EnableV2", lang));
+                        ImGui.SameLine();
+                        state = filtered;
+                        if (ImGui.Checkbox("Hide##" + i.ToString(), ref state))
+                        {
+                            shouldUpdate = true;
+                            if (state)
+                            {
+                                filter.Add(entry);
+                            }
+                            else
+                            {
+                                filter.Remove(entry);
+                            }
+                        }
+                        ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_Hide", lang));
                     }
-                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_EnableV2", lang));
                 }
-                var d = Alloc(hooked.ILHooks.Count() - filter.Count).GetEnumerator();
-                foreach (var (hook, i) in
-                    hooked.ILHooks.Concat(keeptrackedil.Select(x => x.Value))
-                    .Select((s, i) => (s, i)))
+                finally
                 {
-                    ImGui.TableNextColumn();
-                    while (cache2.Count <= i)
-                    {
-                        cache2.Add(default!);
-                    }
-                    MethodBase entry = hook.ManipulatorMethod;
-                    bool filtered = filter.Contains(entry);
-                    if (cache2[i].entry != entry)
-                    {
-                        cache2[i] = (entry.GetMethodNameForDB(), entry);
-                        shouldUpdate = true;
-                    }
-                    ImGui.Text("IL");
-                    ImGui.TableNextColumn();
-                    var col = new Vector4(0.6f, 0.6f, 0.6f, 1);
-                    if (!filtered && hook.IsApplied)
-                    {
-                        d.MoveNext();
-                        col = d.Current;
-                    }
-                    ImGui.TextColored(col, cache2[i].name);
-                    MakeDecompile(entry, lang, cache2[i].name);
-                    ImGui.TableNextColumn();
-                    bool state = hook.IsApplied;
-                    if (ImGui.Checkbox("Enable##il" + i.ToString(), ref state))
-                    {
-                        shouldUpdate = true;
-                        if (state)
-                        {
-                            Delayed.Add(() =>
-                            {
-                                hook.Apply();
-                                keeptrackedil.Remove(entry);
-                            });
-                        }
-                        else
-                        {
-                            Delayed.Add(() =>
-                            {
-                                hook.Undo();
-                                keeptrackedil.Add(entry, hook);
-                            });
-                        }
-                    }
-                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_Enable", lang));
-                    var f = disablev2.TryGetValue(entry, out var h);
-                    state = !f;
-                    ImGui.SameLine();
-                    if (ImGui.Checkbox("EnableV2##il" + i.ToString(), ref state))
-                    {
-                        shouldUpdate = true;
-                        if (state != f)
-                        {
-                            throw new Exception("How?");
-                        }
-                        if (f)
-                        {
-                            h!.Dispose();
-                            disablev2.Remove(entry);
-                        }
-                        else
-                        {
-                            disablev2.Add(entry, new(entry, il =>
-                            {
-                                il.Instrs.Clear();
-                                il.Method.Body.ExceptionHandlers.Clear();
-                                ILCursor ic = new(il);
-                                ic.EmitRet();
-                            }));
-                        }
-                    }
-                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_EnableV2", lang));
-                    ImGui.SameLine();
-                    state = filtered;
-                    if (ImGui.Checkbox("Hide##" + i.ToString(), ref state))
-                    {
-                        shouldUpdate = true;
-                        if (state)
-                        {
-                            filter.Add(entry);
-                        }
-                        else
-                        {
-                            filter.Remove(entry);
-                        }
-                    }
-                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_Hide", lang));
+                    ImGui.EndTable();
                 }
-                ImGui.EndTable();
             }
             ImGui.Separator();
             if (success)
             {
                 if (ImGui.BeginTable("Then", 2, ImGuiTableFlags.Resizable | ImGuiTableFlags.RowBg))
                 {
-                    var c = *ImGui.GetStyleColorVec4(ImGuiCol.Text);
-                    foreach (var (i, (ca, cb, na, nb), (obj, r)) in Current.Zip(CurrentColor, CurrentRef))
+                    try
                     {
-                        ImGui.TableNextColumn();
-                        var (an, cx) = (i.Anon.stat & Diff.Status.Crossed) switch
-                        {
-                            Diff.Status.Added => (" + ", new Vector4(0, 0.8f, 0, 1)),
-                            Diff.Status.Removed => (" + ", new(0.8f, 0, 0, 1)),
-                            Diff.Status.Crossed when i.Anon.stat.HasFlag(Diff.Status.NotInArray) => (" - ", new(0.8f, 0.8f, 0, 1)),
-                            Diff.Status.Crossed => (" + ", new(0.8f, 0.8f, 0, 1)),
-                            _ => ("   ", c),
-                        };
-                        ImGui.TextColored(cx, an + i.Instr.ToString());
-                        ImGui.TableNextColumn();
-                        if (i.Anon.by is { } a)
-                        {
-                            ImGui.TextColored(ca, na);
-                            MakeDecompile(a, lang, na);
-                            if (i.Anon.And is { } b)
-                            {
-                                ImGui.TextColored(cb, nb);
-                                MakeDecompile(b, lang, nb);
-                            }
-                        }
-                        if (r is { })
+
+                        var c = *ImGui.GetStyleColorVec4(ImGuiCol.Text);
+                        foreach (var (i, (ca, cb, na, nb), (obj, r)) in Current.Zip(CurrentColor, CurrentRef))
                         {
                             ImGui.TableNextColumn();
-                            ImGui.TextColored(new(0.7f, 0.7f, 0.7f, 0.7f), r);
-                            if (obj is Delegate d)
+                            var (an, cx) = (i.Anon.stat & Diff.Status.Crossed) switch
                             {
-                                MakeDecompile(d.Method, lang, r);
-                            }
+                                Diff.Status.Added => (" + ", new Vector4(0, 0.8f, 0, 1)),
+                                Diff.Status.Removed => (" + ", new(0.8f, 0, 0, 1)),
+                                Diff.Status.Crossed when i.Anon.stat.HasFlag(Diff.Status.NotInArray) => (" - ", new(0.8f, 0.8f, 0, 1)),
+                                Diff.Status.Crossed => (" + ", new(0.8f, 0.8f, 0, 1)),
+                                _ => ("   ", c),
+                            };
+                            ImGui.TextColored(cx, an + i.Instr.ToString());
                             ImGui.TableNextColumn();
+                            if (i.Anon.by is { } a)
+                            {
+                                ImGui.TextColored(ca, na);
+                                MakeDecompile(a, lang, na);
+                                if (i.Anon.And is { } b)
+                                {
+                                    ImGui.TextColored(cb, nb);
+                                    MakeDecompile(b, lang, nb);
+                                }
+                            }
+                            if (r is { })
+                            {
+                                ImGui.TableNextColumn();
+                                ImGui.TextColored(new(0.7f, 0.7f, 0.7f, 0.7f), r);
+                                if (obj is Delegate d)
+                                {
+                                    MakeDecompile(d.Method, lang, r);
+                                }
+                                ImGui.TableNextColumn();
+                            }
                         }
                     }
-                    ImGui.EndTable();
+                    finally
+                    {
+                        ImGui.EndTable();
+                    }
                 }
             }
             else
