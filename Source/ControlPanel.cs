@@ -505,28 +505,32 @@ namespace Celeste.Mod.ILHookDebugger
             var (d, f) = ILHookDebuggerModule.CheckDecompiler.Value;
             if (d)
             {
-                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_Decompile", language));
-                if (ImGui.IsItemClicked())
+                Extract(src, language, cache, f);
+                static void Extract(MethodBase src, Language? language, string? cache, string? f)
                 {
-                    src = src.TryGetActualEntry();
-                    cache ??= src.GetMethodNameForDB();
-                    if (src is DynamicMethod)
+                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_Decompile", language));
+                    if (ImGui.IsItemClicked())
                     {
-                        throw new NotImplementedException("source method is dynamic method, which is not supported.");
-                    }
-                    Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {f}...");
-                    var (ast, decomp) = Decompilation.NonHook(src);
-                    if (ILHookDebuggerModule.Settings.OpenInEditor)
-                    {
-                        var inst = MiGui.Instance;
-                        inst.decompiled.Add(MiGui.CreateEditor(ast, decomp, inst.GetNextWindowName(cache)));
-                    }
-                    else
-                    {
-                        var w = new MyTokenWriter(Console.Out, decomp.TypeSystem, ILHookDebuggerModule.PaletteForConsole());
-                        ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
-                    }
+                        src = src.TryGetActualEntry();
+                        cache ??= src.GetMethodNameForDB();
+                        if (src is DynamicMethod)
+                        {
+                            throw new NotImplementedException("source method is dynamic method, which is not supported.");
+                        }
+                        Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {f}...");
+                        var (ast, decomp) = Decompilation.NonHook(src);
+                        if (ILHookDebuggerModule.Settings.OpenInEditor)
+                        {
+                            var inst = MiGui.Instance;
+                            inst.decompiled.Add(MiGui.CreateEditor(ast, decomp, inst.GetNextWindowName(cache)));
+                        }
+                        else
+                        {
+                            var w = new MyTokenWriter(Console.Out, decomp.TypeSystem, ILHookDebuggerModule.PaletteForConsole());
+                            ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
+                        }
 
+                    }
                 }
             }
         }

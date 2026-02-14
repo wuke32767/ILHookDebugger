@@ -124,7 +124,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 var content = decompiled[index];
                 bool open = true;
                 ImGui.SetNextWindowSize(new(150 * 2.5f, ImGui.GetMainViewport().Size.Y / 4), ImGuiCond.FirstUseEver);
-                if (ImGui.Begin(content.Title, ref open, ImGuiWindowFlags.HorizontalScrollbar))
+                if (ImGui.Begin(content.Title, ref open, ImGuiWindowFlags.HorizontalScrollbar | ImGuiWindowFlags.NoSavedSettings))
                 {
                     content.ProtectedRender();
                     ImGui.End();
@@ -496,12 +496,6 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                             }
                             See(me);
                         }
-                        ImGui.SameLine();
-                        if (ImGui.Button(Look(me.CustomAttributes) ? "Done" : ("Check IL##" + na)))
-                        {
-                            decompiled.Add(new ControlPanel(GetNextWindowName(na), me));
-                        }
-
                         ImGui.EndDisabled();
                         if (hasdecom)
                         {
@@ -510,6 +504,12 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                         else
                         {
                             ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Decompiler", lang));
+                        }
+                        ImGui.SameLine();
+                     
+                        if (ImGui.Button(Look(me.CustomAttributes) ? "Done" : ("Check IL##" + na)))
+                        {
+                            decompiled.Add(new ControlPanel(GetNextWindowName(na), me));
                         }
                     }
 
