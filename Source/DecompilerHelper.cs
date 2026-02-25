@@ -144,7 +144,12 @@ namespace Celeste.Mod.ILHookDebugger
                     il.Invoke(manip);
                 }
             }
-            using var t = PrintingPod.Operate(target, il, ILHookDebuggerModule.ILSpyFeature);
+            TransformingResult t = default;
+            il.Invoke(il =>
+            {
+                t = PrintingPod.Operate(target, il, ILHookDebuggerModule.ILSpyFeature);
+            });
+            using var what = t;
             return Final(t.output, t.name);
         }
 
