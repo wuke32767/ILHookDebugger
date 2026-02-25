@@ -44,6 +44,7 @@ public enum IDEFeatures
     CanDebuggerLaunchButNotDefault = (1 << 5) | CanDebuggerLaunch,
     CanNotInlineDelegate = 1 << 6,
     NotRun = 1 << 7,
+    DamnTypeResolveCache = 1 << 8,
 }
 
 public class ILHookDebuggerModule : EverestModule
@@ -327,6 +328,7 @@ public class ILHookDebuggerModule : EverestModule
                 IDEFeatures.CanNotInlineDelegate |
                 IDEFeatures.CanDebuggerLaunch,
             Compatibility.Rider =>
+                IDEFeatures.DamnTypeResolveCache |
                 IDEFeatures.NormalizeName |
                 IDEFeatures.RequiresFileAssembly |
                 IDEFeatures.CanDebuggerLaunchButNotDefault,
@@ -353,6 +355,7 @@ public class ILHookDebuggerModule : EverestModule
     });
 
     public static Swapping BreakOnce = new(i => i, i => PrintingPod.Refresh());
+    public static Swapping IEnumeratorPatch = new(i => i, i => PrintingPod.Refresh());
     public static Swapping TextConvertor = new(i => i, i => PrintingPod.Refresh());
     public static Swapping PrettifyMonoMod = new(i => i, i => PrintingPod.Refresh());
 

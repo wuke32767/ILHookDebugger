@@ -17,6 +17,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Celeste.Mod.ILHookDebugger
@@ -204,6 +205,12 @@ namespace Celeste.Mod.ILHookDebugger
             dattr.ConstructorArguments.Add(new(mdm.TypeSystem.Boolean, true));
             dattr.ConstructorArguments.Add(new(mdm.TypeSystem.Boolean, true));
             asm.CustomAttributes.Add(dattr);
+
+            var targetf = typeof(System.Runtime.Versioning.TargetFrameworkAttribute).GetConstructor([typeof(string)])!;
+            var tattr = new CustomAttribute(il.Import(targetf));
+            tattr.ConstructorArguments.Add(new(mdm.TypeSystem.String, ".NETCoreApp,Version=v8.0"));
+            tattr.Properties.Add(new("FrameworkDisplayName", new(mdm.TypeSystem.String, ".NET 8.0")));
+            asm.CustomAttributes.Add(tattr);
             foreach (var instr in il.Instrs)
             {
                 //var mod = instr.Operand switch
@@ -457,12 +464,15 @@ namespace Celeste.Mod.ILHookDebugger
             List<Transform> tr = [
                 b,
                 new SomehowRelinker(),
-                new Breaker(),
 
                 new StealDynamicMethod(),
                 new MonoModPrettify(),
                 new StealCompilerGenerated(tacache),
+                new MakeIEnumerator(),
 
+                new Breaker(),
+
+                new DamnCacheFixer(),
                 new Cleanup(mi, b),
                 ];
             foreach (var t in tr)
@@ -567,6 +577,295 @@ namespace Celeste.Mod.ILHookDebugger
                 var stream = dup.Asm!;
                 stream.Seek(0, SeekOrigin.Begin);
                 stream.CopyTo(file);
+            }
+        }
+    }
+
+    internal partial class MakeIEnumerator : Transform
+    {
+        [GeneratedRegex(@"\A<(?<name1>[^>]*)>[0-9]+__(?<name2>.*)\z", RegexOptions.ExplicitCapture)]
+        public static partial Regex MatchParamName();
+
+        internal override void Run(ILContext il, IDEFeatures feat)
+        {
+            if (!ILHookDebuggerModule.Settings.IEnumeratorPatch)
+            {
+                return;
+            }
+            var md = il.Method;
+            var m = md.Module;
+            if (md.Parameters.Count is > 1 or 0)
+            {
+                return;
+            }
+            var at = md.Parameters[0].ParameterType;
+            var atf = at.ResolveReflection();
+            if (!atf.IsAssignableTo(typeof(System.Collections.IEnumerator)))
+            {
+                return;
+            }
+            const BindingFlags bf = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+            var state = Resolve(x => { x.MatchStfld(out var f); return f; }, atf.GetConstructor(bf, [typeof(int)])!);
+            MethodInfo? refcur = atf.GetMethod("get_Current", bf) ?? atf.GetMethod("System.Collections.IEnumerator.get_Current", bf);
+            var cur = Resolve(x => { x.MatchLdfld(out var f); return f; }, refcur);
+            if (state is null || cur is null)
+            {
+                return;
+            }
+
+            var newm = md.Clone();
+            foreach (var c in newm.Body.Instructions)
+            {
+                if (c.Operand is ILLabel target)
+                {
+                    c.Operand = newm.Body.Instructions[md.Body.Instructions.IndexOf(target.Target)];
+                }
+                else if (c.Operand is ILLabel[] targets)
+                {
+                    c.Operand = targets.Select(i => newm.Body.Instructions[md.Body.Instructions.IndexOf(i.Target)]).ToArray();
+                }
+            }
+
+            newm.DeclaringType = null;
+            var ppt = new TypeDefinition("", "RemoveNext", Mono.Cecil.TypeAttributes.Sealed | Mono.Cecil.TypeAttributes.NestedPrivate, m.TypeSystem.Object);
+            var pt = new TypeDefinition("", "<RemoveNext>d__114514", Mono.Cecil.TypeAttributes.Sealed | Mono.Cecil.TypeAttributes.NestedAssembly, m.TypeSystem.Object);
+            ppt.NestedTypes.Add(pt);
+            pt.CustomAttributes.Add(new(m.ImportReference(typeof(CompilerGeneratedAttribute).GetConstructor([]))));
+            pt.Methods.Add(newm);
+            newm.Name = "MoveNext";
+            newm.Attributes = Mono.Cecil.MethodAttributes.Final | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.NewSlot;
+            newm.Parameters.Clear();
+
+            FieldInfo[] @is = atf.GetFields(bf);
+            foreach (var i in @is)
+            {
+                pt.Fields.Add(new(i.Name, Mono.Cecil.FieldAttributes.Assembly, m.ImportReference(i.FieldType)));
+            }
+
+            var pstate = pt.Fields.First(x => x.Name == state.Name);
+            var pcur = pt.Fields.First(x => x.Name == cur.Name);
+
+            md.DeclaringType.NestedTypes.Add(ppt);
+
+            var raw = new FieldDefinition("RAW", Mono.Cecil.FieldAttributes.Assembly, at);
+            pt.Fields.Add(raw);
+            var refien = typeof(System.Collections.IEnumerator);
+            var refgen = typeof(IEnumerator<>).MakeGenericType(refcur!.ReturnType);
+            var refdis = typeof(IDisposable);
+            var ien = m.ImportReference(refien);
+            var gen = m.ImportReference(refgen);
+            var dis = m.ImportReference(refdis);
+            pt.Interfaces.Add(new(ien));
+            pt.Interfaces.Add(new(gen));
+            pt.Interfaces.Add(new(dis));
+            {
+                var res = new MethodDefinition("System.Collections.IEnumerator.Reset",
+                    Mono.Cecil.MethodAttributes.Final | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.NewSlot,
+                    m.TypeSystem.Void);
+                pt.Methods.Add(res);
+                var p = res.Body.GetILProcessor();
+                p.Emit(OpCodes.Ret);
+                res.Overrides.Add(m.ImportReference(refien.GetMethod("Reset")));
+            }
+            {
+                // for ilspy
+                var res = new MethodDefinition("System.IDisposable.Dispose",
+                    Mono.Cecil.MethodAttributes.Final | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.NewSlot,
+                    m.TypeSystem.Void);
+                pt.Methods.Add(res);
+                var p = res.Body.GetILProcessor();
+                p.Emit(OpCodes.Ret);
+                res.Overrides.Add(m.ImportReference(refdis.GetMethod("Dispose")));
+            }
+            var ctor = new MethodDefinition(".ctor",
+                Mono.Cecil.MethodAttributes.RTSpecialName | Mono.Cecil.MethodAttributes.SpecialName | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.ReuseSlot,
+                m.TypeSystem.Void);
+            {
+                ctor.Parameters.Add(new(m.TypeSystem.Int32));
+                pt.Methods.Add(ctor);
+                // for ilspy
+                var proc = ctor.Body.GetILProcessor();
+                proc.Emit(OpCodes.Ldarg_0);
+                proc.Emit(OpCodes.Ldarg_1);
+                proc.Emit(OpCodes.Stfld, pstate);
+                proc.Emit(OpCodes.Ret);
+            }
+            {
+                var gc = new MethodDefinition("System.Collections.Generic.IEnumerator<something>.get_Current",
+                    Mono.Cecil.MethodAttributes.SpecialName |
+                    Mono.Cecil.MethodAttributes.Final | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.NewSlot,
+                    pcur.FieldType);
+                pt.Methods.Add(gc);
+                // for ilspy
+                var p = gc.Body.GetILProcessor();
+                p.Emit(OpCodes.Ldarg_0);
+                p.Emit(OpCodes.Ldfld, pcur);
+                p.Emit(OpCodes.Ret);
+                gc.Overrides.Add(m.ImportReference(refgen.GetMethod("get_Current")));
+
+                var current = new PropertyDefinition("System.Collections.Generic.IEnumerator<something>.Current", Mono.Cecil.PropertyAttributes.None, pcur.FieldType);
+                current.GetMethod = gc;
+                pt.Properties.Add(current);
+            }
+            {
+                var gc = new MethodDefinition("System.Collections.IEnumerator.get_Current",
+                    Mono.Cecil.MethodAttributes.SpecialName |
+                    Mono.Cecil.MethodAttributes.Final | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.NewSlot,
+                    m.TypeSystem.Object);
+                pt.Methods.Add(gc);
+                // for ilspy
+                // unreachable
+                var p = gc.Body.GetILProcessor();
+                p.Emit(OpCodes.Ldarg_0);
+                p.Emit(OpCodes.Ldfld, pcur);
+                p.Emit(OpCodes.Ret);
+                gc.Overrides.Add(m.ImportReference(refien.GetMethod("get_Current")));
+
+                var current = new PropertyDefinition("System.Collections.IEnumerator.Current", Mono.Cecil.PropertyAttributes.None, m.TypeSystem.Object);
+                current.GetMethod = gc;
+                pt.Properties.Add(current);
+            }
+            {
+                var stub = new MethodDefinition("ILHookDebuggerStateMachineStub", Mono.Cecil.MethodAttributes.Static, ien);
+                ppt.Methods.Add(stub);
+                var atttr = new CustomAttribute(m.ImportReference(typeof(IteratorStateMachineAttribute).GetConstructor([typeof(Type)])));
+                atttr.ConstructorArguments.Add(new(m.ImportReference(typeof(Type)), pt));
+                stub.CustomAttributes.Add(atttr);
+                var p = stub.Body.GetILProcessor();
+                var self = new VariableDefinition(pt);
+                stub.Body.Variables.Add(self);
+                p.Emit(OpCodes.Ldc_I4, -2);
+                p.Emit(OpCodes.Newobj, ctor);
+                p.Emit(OpCodes.Stloc, self);
+                foreach (var i in pt.Fields)
+                {
+                    if (i != pstate && i != pcur)
+                    {
+                        var n = MatchParamName().Match(i.Name) is { Success: true, Groups: { } c } ? c["name1"].Value + c["name2"].Value : i.Name;
+                        var param = new ParameterDefinition(i.FieldType)
+                        {
+                            Name = n
+                        };
+                        stub.Parameters.Add(param);
+                        p.Emit(OpCodes.Ldloc, self);
+                        p.Emit(OpCodes.Ldarg, param);
+                        p.Emit(OpCodes.Stfld, i);
+                    }
+                }
+                p.Emit(OpCodes.Ldloc, self);
+                p.Emit(OpCodes.Ret);
+            }
+            {
+                md.Name = "<>" + md.Name;
+                md.Body.Instructions.Clear();
+                md.Body.ExceptionHandlers.Clear();
+                var ic = new ILCursor(il);
+                var self = new VariableDefinition(pt);
+                il.Body.Variables.Add(self);
+                ic.EmitLdcI4(0);
+                ic.EmitNewobj(ctor);
+                ic.EmitStloc(self);
+                foreach (var i in @is)
+                {
+                    ic.EmitLdloc(self);
+                    ic.EmitLdarg0();
+                    ic.EmitLdfld(m.ImportReference(i));
+                    ic.EmitStfld(pt.Fields.First(x => x.Name == i.Name));
+                }
+                ic.EmitLdloc(self);
+                ic.EmitLdarg0();
+                ic.EmitStfld(raw);
+                ic.EmitLdloc(self);
+                ic.EmitCall(newm);
+                ic.EmitRet();
+            }
+            {
+                newm.Overrides.Add(m.ImportReference(refien.GetMethod("MoveNext")));
+                using ILContext nil = new(newm);
+                newm.HasThis = true;
+                //newm.Parameters[0].ParameterType = pt;
+                nil.Invoke(nil =>
+                {
+                    var ic = new ILCursor(nil);
+                    bool pre = true;
+                    while (ic.TryGotoNext(MoveType.After, i => i.MatchLdarg(0) || i.MatchSwitch(out _)))
+                    {
+                        if (ic.Prev.MatchSwitch(out _))
+                        {
+                            pre = false;
+                        }
+                        else
+                        {
+                            if (pre && (ic.Next?.MatchLdfld(out var f) ?? false))
+                            {
+                                f = pt.Fields.First(x => x.Name == f.Name);
+                                ic.MoveAfterLabels();
+                                ic.EmitLdfld(f);
+                                ic.Remove();
+                            }
+                            else
+                            {
+                                ic.EmitLdfld(raw);
+                            }
+                        }
+                    }
+                    ic.Index = 0;
+                    while (ic.TryGotoNext(MoveType.AfterLabel, i => i.MatchLdarga(0)))
+                    {
+                        ic.EmitLdarg(0);
+                        ic.EmitLdflda(raw);
+                        ic.Remove();
+                    }
+                    ic.Index = 0;
+                    VariableDefinition? devil = null;
+                    while (ic.TryGotoNext(MoveType.AfterLabel, i => i.MatchStarg(0)))
+                    {
+                        if (devil is null)
+                        {
+                            devil = new(m.TypeSystem.Object);
+                            newm.Body.Variables.Add(devil);
+                        }
+                        ic.EmitStloc(devil);
+                        ic.EmitLdarg(0);
+                        ic.EmitLdloc(devil);
+                        ic.EmitStfld(raw);
+                        ic.Remove();
+                    }
+                    ic.Index = 0;
+#pragma warning disable CL0006 // ilspy did almost the same thing
+                    var devil2 = new VariableDefinition(pcur.FieldType);
+                    newm.Body.Variables.Add(devil2);
+                    int curstate = 0;
+                    while (ic.TryGotoNext(MoveType.AfterLabel,
+                        i => i.MatchStfld(out var a) && a.DeclaringType.Is(atf) && a.Name == cur.Name,
+                        i => i.MatchLdarg0(), i => i.MatchLdfld(raw),
+                        i => i.MatchLdcI4(out curstate),
+                        i => i.MatchStfld(out var a) && a.DeclaringType.Is(atf) && a.Name == state.Name,
+                        // + 5
+                        i => i.MatchLdcI4(1),
+                        i => i.MatchRet()
+                        ))
+                    {
+                        ic.EmitStloc(devil2);
+                        ic.EmitLdloc(devil2);
+                        ic.Index += 5;
+                        ic.EmitLdarg0();
+                        ic.EmitLdloc(devil2);
+                        ic.EmitStfld(pcur);
+                        ic.EmitLdarg0();
+                        ic.EmitLdcI4(curstate);
+                        ic.EmitStfld(pstate);
+                    }
+                });
+            }
+            FieldReference? Resolve(Func<Instruction, FieldReference?> find, MethodBase? method)
+            {
+                if (method is null)
+                {
+                    return null;
+                }
+                using var origctor = new DynamicMethodDefinition(method);
+                return origctor.Definition.Body.Instructions.Select(find).Where(x => x?.DeclaringType.Is(atf) ?? false).SingleOrDefault()!;
             }
         }
     }

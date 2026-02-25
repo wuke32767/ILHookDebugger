@@ -31,6 +31,17 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
         }
     }
 
+    [SettingName("ILHookDebugger_Settings_IEnumeratorPatch")]
+    [SettingSubText("ILHookDebugger_Settings_IEnumeratorPatch_Help")]
+    public bool IEnumeratorPatch
+    {
+        get => ILHookDebuggerModule.IEnumeratorPatch;
+        set
+        {
+            ILHookDebuggerModule.IEnumeratorPatch.Value = value;
+        }
+    }
+
     [SettingName("ILHookDebugger_Settings_UnloadWhenDetached")]
     [SettingSubText("ILHookDebugger_Settings_UnloadWhenDetached_Help")]
     public bool UnloadWhenDetached

@@ -263,6 +263,14 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     ILHookDebuggerModule.UnloadWhenDetached.Value = cur;
                 }
                 ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_UnloadWhenDetached_Help", lang));
+                ImGui.SameLine();
+
+                cur = ILHookDebuggerModule.IEnumeratorPatch;
+                if (ImGui.Checkbox("Patch IEnumerator", ref cur))
+                {
+                    ILHookDebuggerModule.IEnumeratorPatch.Value = cur;
+                }
+                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Settings_IEnumeratorPatch_Help", lang));
                 var (hasEd, src) = ILHookDebuggerModule.CheckEditor.Value;
                 var (hasdecom, fromd) = ILHookDebuggerModule.CheckDecompiler.Value;
 

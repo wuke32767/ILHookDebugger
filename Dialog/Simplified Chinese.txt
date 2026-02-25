@@ -65,3 +65,9 @@ ILHookDebugger_Settings_Help_Decompiler_ServerModePort=
 ILHookDebugger_Settings_Help_Decompiler_ServerModePort_NoEdit=
 请从 ImGui 界面或者命令行编辑，或者手动修改配置文件。
 
+ILHookDebugger_Settings_IEnumeratorPatch=
+变形 IEnumerator
+
+ILHookDebugger_Settings_IEnumeratorPatch_Help=
+将 IEnumerator 变形成可以反编译为状态机的形式。
+一些正常的钩子都有可能破坏它，当你遇到这样的问题时不要向我报告 Bug。

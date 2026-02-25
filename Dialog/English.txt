@@ -127,7 +127,7 @@ ILHookDebugger_Tooltips_EnableV2=
 Enable or disable an hook.
 Won't sync between mu and ilhd. (surely)
 Never changes hook order.
-
+{n}
 ILHook only, Toggle this will prevent the given method/assembly from being collected.
 That is, sometimes causes memory issue when hot code reloading.
 
@@ -136,3 +136,10 @@ Only hide for diff.
 
 ILHookDebugger_Tooltips_Decompile=
 Click to decompile this method.
+
+ILHookDebugger_Settings_IEnumeratorPatch=
+Patch IEnumerator
+
+ILHookDebugger_Settings_IEnumeratorPatch_Help=
+Patch IEnumerator to let it to be decompiled as state machine.
+Some of our normal hooks can break it, just disable it when you encounter issues, don't report to me.
