@@ -189,8 +189,8 @@ namespace Celeste.Mod.ILHookDebugger
     {
         public override string Title { get; }
 
-        static ConditionalWeakTable<MethodBase, ILHook> disablev2 = [];
-        static ConditionalWeakTable<MethodBase, MonoMod.Core.ICoreDetour> disableonv2 = [];
+        internal static Dictionary<(MethodBase, MethodBase), ILHook> disablev2 = [];
+        internal static Dictionary<MethodBase, MonoMod.Core.ICoreDetour> disableonv2 = [];
         HashSet<MethodBase> filter = [];
         private readonly MethodBase method;
 
@@ -206,8 +206,8 @@ namespace Celeste.Mod.ILHookDebugger
         List<(object?, string?)> CurrentRef = null!;
         Exception ex = null!;
         string by = null!;
-        static ConditionalWeakTable<MethodBase, DetourInfo> keeptrackedon = [];
-        static ConditionalWeakTable<MethodBase, ILHookInfo> keeptrackedil = [];
+        static Dictionary<MethodBase, DetourInfo> keeptrackedon = [];
+        static Dictionary<MethodBase, ILHookInfo> keeptrackedil = [];
         internal static MethodInfo getvalue = typeof(DynamicReferenceManager).GetMethod("GetValueTUnsafe", BindingFlags.NonPublic | BindingFlags.Static)!;
         internal void Update()
         {
@@ -292,6 +292,7 @@ namespace Celeste.Mod.ILHookDebugger
                 return;
             }
             bool shouldUpdate = false;
+            bool shouldUpdateHook = false;
             if (ImGui.BeginTable("Hooks", 3, ImGuiTableFlags.Resizable | ImGuiTableFlags.RowBg))
             {
                 try
@@ -410,7 +411,7 @@ namespace Celeste.Mod.ILHookDebugger
                             }
                         }
                         ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_Enable", lang));
-                        var f = disablev2.TryGetValue(entry, out var h);
+                        var f = disablev2.TryGetValue((entry, method), out var h);
                         state = !f;
                         ImGui.SameLine();
                         if (ImGui.Checkbox("EnableV2##il" + i.ToString(), ref state))
@@ -423,18 +424,37 @@ namespace Celeste.Mod.ILHookDebugger
                             if (f)
                             {
                                 h!.Dispose();
-                                disablev2.Remove(entry);
+                                disablev2.Remove((entry, method));
                             }
                             else
                             {
-                                disablev2.Add(entry, new(entry, il =>
+                                var id = method.GetID(null, null, true, false, true);
+                                var sig = MethodSignature.ForMethod(method, false);
+                                disablev2.Add((entry, method), new(entry, il =>
                                 {
-                                    il.Instrs.Clear();
-                                    il.Method.Body.ExceptionHandlers.Clear();
                                     ILCursor ic = new(il);
+                                    var l = ic.DefineLabel();
+                                    ic.EmitLdarg(sig.ParameterCount - 1);
+                                    ic.EmitLdstr(id);
+                                    ic.EmitReference(sig);
+                                    static bool cb(ILContext self, string id, MethodSignature sig)
+                                    {
+                                        var m = self.Method;
+                                        return m.Name == id &&
+                                            m.Parameters.Count == sig.ParameterCount &&
+                                            m.Parameters.Zip(sig.Parameters).All(x =>
+                                            {
+                                                var (a, b) = x;
+                                                return a.ParameterType.Is(b);
+                                            });
+                                    }
+                                    ic.EmitDelegate(cb);
+                                    ic.EmitBrfalse(l);
                                     ic.EmitRet();
+                                    ic.MarkLabel(l);
                                 }));
                             }
+                            shouldUpdateHook = true;
                         }
                         ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Tooltips_EnableV2", lang));
                         ImGui.SameLine();
@@ -523,6 +543,10 @@ namespace Celeste.Mod.ILHookDebugger
             if (shouldUpdate)
             {
                 Update();
+            }
+            if (shouldUpdateHook)
+            {
+                new ILHook(method, _ => { }).Dispose();
             }
         }
         internal void MakeDecompile(MethodBase src, Language? language, string? cache = null)
