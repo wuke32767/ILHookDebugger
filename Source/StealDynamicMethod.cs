@@ -41,7 +41,7 @@ namespace Celeste.Mod.ILHookDebugger
                 dm ??= (ic.Next.Operand as DynamicMethodReference)?.DynamicMethod as DynamicMethod;
                 if (dm is not null)
                 {
-                    var def = new MethodDefinition((MMPrefix + localslots.Count + "#" + dm.Name).Simplify(feat),
+                    var def = new MethodDefinition((MMPrefix + dm.Name + "@" + localslots.Count).Simplify(feat),
                                     Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Static,
                                     il.Import(dm.ReturnType ?? typeof(void)));
                     def.Parameters.AddRange(dm.GetParameters().Select(x => new ParameterDefinition(il.Import(x.ParameterType))));
@@ -59,7 +59,9 @@ namespace Celeste.Mod.ILHookDebugger
                     ix.EmitLdcI4(delegateslot);
                     ix.EmitLdelemRef();
                     //slot[delegate]
-                    ix.EmitBrtrue((ILLabel)null!);
+                    var stub = ix.DefineLabel();
+                    ix.EmitBrtrue(stub);
+                    var oo = ix.Prev;
                     //if (slot[delegate] is null)
                     //{
 
@@ -78,9 +80,7 @@ namespace Celeste.Mod.ILHookDebugger
 
                     //}
                     ix.EmitLdsfld(slots);
-                    ix.Clone()
-                        .GotoPrev(MoveType.Before, x => x.MatchBrtrue(out var l) && l is null)
-                        .Next!.Operand = ix.Prev;
+                    oo.Operand = ix.Prev;
                     ix.EmitLdcI4(delegateslot);
                     ix.EmitLdelemRef();
                     for (int j = 0; j < def.Parameters.Count; j++)

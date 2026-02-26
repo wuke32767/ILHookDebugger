@@ -353,7 +353,7 @@ namespace Celeste.Mod.ILHookDebugger
                 new
                 {
                     flag = mis(x.Anon.stat),
-                    instr = x.Instr.ToString(),
+                    instr = x.Instr.ToStringWithDMR(),
                     offset = x.Instr.Offset,
                     bound = drm.TryGetValue(x.Instr, out var bb) ?
                         (bb is Delegate mi ? $"Invoke: {mi.Method.GetMethodNameForDB()}" : $"Reference: {bb}") :

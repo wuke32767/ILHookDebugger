@@ -1,5 +1,6 @@
 ﻿using Celeste.Mod.ILHookDebugger.MappingUtils;
 using ICSharpCode.Decompiler.CSharp.OutputVisitor;
+using ICSharpCode.Decompiler.IL;
 using ImGuiNET;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -10,6 +11,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
@@ -19,6 +21,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using OPC = System.Reflection.Emit.OpCodes;
+using OperandType = Mono.Cecil.Cil.OperandType;
 namespace Celeste.Mod.ILHookDebugger
 {
     static partial class Helpery
@@ -184,6 +187,63 @@ namespace Celeste.Mod.ILHookDebugger
                 return method;
             }
         }
+
+        public static string ToStringWithDMR(this Instruction self)
+        {
+            static void AppendLabel(StringBuilder builder, Instruction instruction)
+            {
+                builder.Append("IL_");
+                builder.Append(instruction.Offset.ToString("x4"));
+            }
+            var instruction = new StringBuilder();
+
+            AppendLabel(instruction, self);
+            instruction.Append(':');
+            instruction.Append(' ');
+            instruction.Append(self.OpCode.Name);
+
+            if (self.Operand == null)
+                return instruction.ToString();
+
+            instruction.Append(' ');
+
+            switch (self.OpCode.OperandType)
+            {
+                case OperandType.ShortInlineBrTarget:
+                case OperandType.InlineBrTarget:
+                    AppendLabel(instruction, (Instruction)self.Operand);
+                    break;
+                case OperandType.InlineSwitch:
+                    var labels = (Instruction[])self.Operand;
+                    for (int i = 0; i < labels.Length; i++)
+                    {
+                        if (i > 0)
+                            instruction.Append(',');
+
+                        AppendLabel(instruction, labels[i]);
+                    }
+                    break;
+                case OperandType.InlineString:
+                    instruction.Append('\"');
+                    instruction.Append(self.Operand);
+                    instruction.Append('\"');
+                    break;
+                default:
+                    if (self.Operand is DynamicMethodReference dmr)
+                    {
+                        instruction.Append("DynamicMethod!" + dmr.Name + "!" + Convert.ToString(dmr, CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        instruction.Append(Convert.ToString(self.Operand, CultureInfo.InvariantCulture));
+                    }
+                    break;
+            }
+
+            return instruction.ToString();
+        }
+
+
     }
     internal class ControlPanel : IExtraWindow
     {
@@ -499,7 +559,7 @@ namespace Celeste.Mod.ILHookDebugger
                                 Diff.Status.Crossed => (" + ", new(0.8f, 0.8f, 0, 1)),
                                 _ => ("   ", c),
                             };
-                            ImGui.TextColored(cx, an + i.Instr.ToString());
+                            ImGui.TextColored(cx, an + i.Instr.ToStringWithDMR());
                             ImGui.TableNextColumn();
                             if (i.Anon.by is { } a)
                             {

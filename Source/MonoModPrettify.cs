@@ -83,7 +83,7 @@ namespace Celeste.Mod.ILHookDebugger
         [GeneratedRegex(@"\A<(?<in>[^>]+)>g__(?<name>[^\|]+)\|(?<id>\d+_\d+)\z", RegexOptions.ExplicitCapture)]
         public static partial Regex MatchLocalFunc();
 
-        internal static bool IsMMInvoke(this MethodReference md)
+        internal static bool NameIsMMInvoke(this MethodReference md, IDEFeatures feat)
         {
             if (md.DeclaringType.FullName == "MonoMod.Cil.FastDelegateInvokers"
                 //&& md.Module.Assembly.Name.Name == "MonoMod.Utils"
@@ -92,7 +92,7 @@ namespace Celeste.Mod.ILHookDebugger
             {
                 return true;
             }
-            if (md.Name.StartsWith(StealDynamicMethod.MMPrefix))
+            if (md.Name.StartsWith((StealDynamicMethod.MMPrefix + "MMIL:Invoke<").Simplify(feat)))
             {
                 return true;
             }
@@ -145,7 +145,7 @@ namespace Celeste.Mod.ILHookDebugger
                 MethodReference method2 = null!;
                 bool hasInvoke = (ic.Next?.MatchCallOrCallvirt(out method2!) ?? false)
                                     && method2.Parameters.Count >= 1
-                                    && method2.IsMMInvoke()
+                                    && method2.NameIsMMInvoke(feat)
                                     && !brs(ic.Next);
                 if (hasInvoke)
                 {

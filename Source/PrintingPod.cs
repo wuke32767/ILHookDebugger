@@ -299,7 +299,7 @@ namespace Celeste.Mod.ILHookDebugger
                 var operand = instr.Operand;
 
                 // Import references.
-                if (operand is IMetadataTokenProvider mtp && operand is not ParameterDefinition)
+                if (operand is IMetadataTokenProvider mtp && operand is not ParameterDefinition and not DynamicMethodReference and not System.Reflection.Emit.DynamicMethod)
                 {
                     operand = mtp.Relink(relinker, clone);
                 }
