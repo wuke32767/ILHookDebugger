@@ -481,27 +481,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                         ImGui.BeginDisabled(!hasdecom);
                         if (ImGui.Button(Look(me) ? "Done" : ("Decompile Only##" + na)))
                         {
-                            if (ILHookDebuggerModule.Settings.OpenInEditor)
-                            {
-                                Extract(me, fromd, GetNextWindowName(na));
-                                void Extract(MethodBase target, string from, string v)
-                                {
-                                    Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
-                                    var (ast, decomp) = Decompilation.FromMethod(target);
-                                    decompiled.Add(CreateEditor(ast, decomp, v));
-                                }
-                            }
-                            else
-                            {
-                                Extract(me, fromd);
-                                static void Extract(MethodBase target, string from)
-                                {
-                                    Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
-                                    var (ast, decomp) = Decompilation.FromMethod(target);
-                                    var w = new MyTokenWriter(Console.Out, decomp.TypeSystem, ILHookDebuggerModule.PaletteForConsole());
-                                    ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
-                                }
-                            }
+                            this.Decompile(fromd, me, na);
                             See(me);
                         }
                         ImGui.EndDisabled();
@@ -514,7 +494,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                             ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Decompiler", lang));
                         }
                         ImGui.SameLine();
-                     
+
                         if (ImGui.Button(Look(me.CustomAttributes) ? "Done" : ("Check IL##" + na)))
                         {
                             decompiled.Add(new ControlPanel(GetNextWindowName(na), me));
@@ -645,6 +625,32 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 Logger.Error(nameof(ILHookDebugger), "[MappingUtilsIntegartion]" + (exception = ex.ToString()));
             }
         }
+
+        public void Decompile(string fromd, MethodBase me, string? na = null)
+        {
+            if (ILHookDebuggerModule.Settings.OpenInEditor)
+            {
+                Extract(me, fromd, GetNextWindowName(na ?? me.GetMethodNameForDB()));
+                void Extract(MethodBase target, string from, string v)
+                {
+                    Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
+                    var (ast, decomp) = Decompilation.FromMethod(target);
+                    decompiled.Add(CreateEditor(ast, decomp, v));
+                }
+            }
+            else
+            {
+                Extract(me, fromd);
+                static void Extract(MethodBase target, string from)
+                {
+                    Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
+                    var (ast, decomp) = Decompilation.FromMethod(target);
+                    var w = new MyTokenWriter(Console.Out, decomp.TypeSystem, ILHookDebuggerModule.PaletteForConsole());
+                    ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
+                }
+            }
+        }
+
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);

@@ -6,6 +6,7 @@ using ImGuiColorTextEditNet;
 using Monocle;
 using MonoMod;
 using MonoMod.Cil;
+using MonoMod.ModInterop;
 using MonoMod.RuntimeDetour;
 using MonoMod.Utils;
 using System;
@@ -77,6 +78,7 @@ public class ILHookDebuggerModule : EverestModule
 #if DEBUG
         GC.Collect();
 #endif
+        typeof(Public).ModInterop();
         try
         {
             if (Directory.Exists(CachePath))
