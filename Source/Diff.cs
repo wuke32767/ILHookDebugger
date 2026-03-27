@@ -26,9 +26,22 @@ namespace Celeste.Mod.ILHookDebugger
         }
         public record struct InstrData(OpCode op, object operand)
         {
+            public required int offset;
+
+            public bool Equals(InstrData data)
+            {
+                return op.Equals(data.op) &&
+                       EqualityComparer<object>.Default.Equals(operand, data.operand);
+            }
+
+            public override int GetHashCode()
+            {
+                return HashCode.Combine(op, operand);
+            }
+
             public static implicit operator InstrData(Instruction i)
             {
-                return new(i.OpCode, i.Operand);
+                return new(i.OpCode, i.Operand) { offset = i.Offset };
             }
         }
         public record struct Annotation(Status stat, System.Reflection.MethodBase? by = null, System.Reflection.MethodBase? And = null)
@@ -113,6 +126,7 @@ namespace Celeste.Mod.ILHookDebugger
                     var c = cur[ic];
                     if (i.Instr == c)
                     {
+                        i.Instr.Offset = i.Raw.offset;
                         instructions[iw] = i;
                         ii--;
                         ic--;
@@ -131,6 +145,7 @@ namespace Celeste.Mod.ILHookDebugger
                     }
                     else
                     {
+                        c.Offset = 0;
                         instructions[iw] = new(c, new(Status.Added, user));
                         instrs.Add(c);
                         ic--;
