@@ -1,5 +1,5 @@
 - Name: ILHookDebugger
-  Version: 0.99.7
+  Version: 0.99.8
   DLL: bin/ILHookDebugger.dll
   Dependencies:
     - Name: EverestCore
