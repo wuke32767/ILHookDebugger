@@ -494,7 +494,7 @@ namespace Celeste.Mod.ILHookDebugger
                                 {
                                     ILCursor ic = new(il);
                                     var l = ic.DefineLabel();
-                                    ic.EmitLdarg(sig.ParameterCount - 1);
+                                    ic.EmitLdarg(il.Method.Parameters.Count - 1);
                                     ic.EmitLdstr(id);
                                     ic.EmitReference(sig);
                                     static bool cb(ILContext self, string id, MethodSignature sig)
