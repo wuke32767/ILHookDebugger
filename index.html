@@ -261,6 +261,7 @@
     </div>
     <script async>
         async function main() {
+            let hash = decodeURI(document.location.hash.slice(1))
             let sel = document.getElementById("selector")
             let opt = document.createElement("option")
             opt.innerText = "please select"
@@ -273,12 +274,16 @@
                 let ai = ll[i][1]
                 let name = ll[i][0]
                 let op = document.createElement("option")
+                if (name === hash) {
+                    op.selected = true
+                }
                 op.value = i
                 op.innerText = name
                 sel.appendChild(op)
             }
             async function onch(ai) {
                 let name = ll[ai][0]
+                document.location.hash = "#" + name
                 let msg = document.getElementById("msg")
                 msg.innerHTML = ""
                 msg.innerText = "working..."
@@ -428,6 +433,14 @@
                             w.innerText = token.token
                             line.appendChild(w)
                         }
+                    }
+                }
+            }
+            if (hash !== "") {
+                for (let i = 0; i < ll.length; i++) {
+                    if (ll[i][0] === hash) {
+                        onch(i);
+                        break;
                     }
                 }
             }
