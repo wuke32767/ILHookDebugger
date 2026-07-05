@@ -1,11 +1,6 @@
-﻿using ICSharpCode.Decompiler.CSharp.Syntax;
-using ImGuiColorTextEditNet;
-using Microsoft.Xna.Framework;
+﻿using ImGuiColorTextEditNet;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Celeste.Mod.ILHookDebugger
 {

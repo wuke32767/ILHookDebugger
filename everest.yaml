@@ -13,3 +13,9 @@
       Version: 0.2.0
     - Name: MappingUtils
       Version: 1.0.0
+    - Name: ILHookDebuggerExtension_ILRunner
+      Version: 0.1.0
+    - Name: ILHookDebuggerExtension_CSScript
+      Version: 0.1.0
+    - Name: CelesteRepl
+      Version: 1.0.3

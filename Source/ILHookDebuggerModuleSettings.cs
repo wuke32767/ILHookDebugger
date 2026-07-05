@@ -141,6 +141,22 @@ public class ILHookDebuggerModuleSettings : EverestModuleSettings
 
     public string? ServerInfo { get; set; }
 
+    public void CreateIDEEntry(TextMenu menu, bool _)
+    {
+        var c = System.Enum.GetNames<Compatibility>();
+        int max = c.Length - 1;
+        if (!ILHookDebuggerModule.CheckRunner.Value.Item1)
+        {
+            max--;
+        }
+        var i = new TextMenu.Slider(Dialog.Clean("ILHookDebugger_Settings_IDE"), i => c[i], 0, max, (int)IDE);
+        i.OnValueChange += v =>
+        {
+            IDE = (Compatibility)v;
+        };
+        menu.Add(i);
+        i.AddDescription(menu, Dialog.Clean("ILHookDebugger_Settings_IDE_Help"));
+    }
     public void CreateServerInfoEntry(TextMenu menu, bool _)
     {
     }

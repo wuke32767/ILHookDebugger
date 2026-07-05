@@ -44,11 +44,11 @@ namespace Celeste.Mod.ILHookDebugger
                 return new(i.OpCode, i.Operand) { offset = i.Offset };
             }
         }
-        public record struct Annotation(Status stat, System.Reflection.MethodBase? by = null, System.Reflection.MethodBase? And = null)
+        public record struct Annotation(Status stat, Action<ILContext>? by = null, Action<ILContext>? And = null)
         {
-            internal readonly List<System.Reflection.MethodBase> GetSrc()
+            internal readonly List<Action<ILContext>> GetSrc()
             {
-                List<System.Reflection.MethodBase> src = [];
+                List<Action<ILContext>> src = [];
                 if (by is { } b)
                 {
                     src.Add(b);
@@ -80,7 +80,8 @@ namespace Celeste.Mod.ILHookDebugger
         // sometimes contains removed instrs, but who cares.
         HashSet<Instruction> instrs;
         public Exception? exception = null;
-        public System.Reflection.MethodBase when = null!;
+        public Action<ILContext> when = null!;
+        public Func<Action<ILContext>, int>? MyIndexer;
         internal Diff(ILContext il)
         {
             instructions = il.Instrs.Select(x => new Annotated(x, new(default))).ToList();
@@ -88,7 +89,7 @@ namespace Celeste.Mod.ILHookDebugger
             instrs = il.Instrs.ToHashSet();
         }
 
-        internal void Update(ILContext il, System.Reflection.MethodBase user)
+        internal void Update(ILContext il, Action<ILContext> user)
         {
             if (exception is null)
             {
@@ -103,7 +104,7 @@ namespace Celeste.Mod.ILHookDebugger
                 }
             }
         }
-        internal void UpdateInternal(ILContext il, System.Reflection.MethodBase user)
+        internal void UpdateInternal(ILContext il, Action<ILContext> user)
         {
             Annotated dymmy = new(default!, default, default);
             var cur = il.Instrs;
@@ -304,7 +305,7 @@ namespace Celeste.Mod.ILHookDebugger
                 }
             }
 
-            void removed(System.Reflection.MethodBase user, Annotated i)
+            void removed(Action<ILContext> user, Annotated i)
             {
                 Annotation anon = i.Anon;
                 anon.stat |= Status.Removed | Status.NotInArray;
@@ -323,12 +324,19 @@ namespace Celeste.Mod.ILHookDebugger
                     instr.Operand = targets.Select(t => t.Target).ToArray();
             }
 
-            int vindex = Math.Max(0x10000, instructions.Count * 10 + 10);
+            int vindex = 0x10000;
+            Dictionary<int, int> atx = [];
             foreach (var instr in instructions)
             {
                 if (instr.Anon.stat.HasFlag(Status.Added) && instr.Instr.Offset == 0)
                 {
-                    instr.Instr.Offset = vindex++;
+                    int v = instr.Anon.by is { } by && MyIndexer is { } id ? id(by) : 0;
+                    if (!atx.TryGetValue(v, out var val))
+                    {
+                        atx[v] = val = 0;
+                    }
+                    instr.Instr.Offset = val++ + vindex + v;
+                    atx[v]++;
                 }
             }
         }
@@ -363,7 +371,7 @@ namespace Celeste.Mod.ILHookDebugger
                 }
                 return b.ToString();
             }
-            Dictionary<System.Reflection.MethodBase, string> cache = [];
+            Dictionary<Action<ILContext>, string> cache = [];
             return instructions.Select(x =>
                 new
                 {
@@ -383,7 +391,7 @@ namespace Celeste.Mod.ILHookDebugger
                     {
                         if (!cache.TryGetValue(x, out var r))
                         {
-                            cache.Add(x, r = x.GetMethodNameForDB());
+                            cache.Add(x, r = x.Method.GetMethodNameForDB());
                         }
                         return r;
                     }),

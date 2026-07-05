@@ -17,7 +17,7 @@ namespace Celeste.Mod.ILHookDebugger
 {
     using Resolve = NotTooLazy<MethodReference, MethodBase>;
 
-    internal class StealCompilerGenerated(TypeAttr attr) : Transform()
+    internal class StealCompilerGenerated(TypeAttr attr) : Mergeform()
     {
         public static string Prefix => "GetDelegateFactory(";
         public static string Suffix => ").Create";
@@ -127,9 +127,11 @@ namespace Celeste.Mod.ILHookDebugger
                     il.Method.DeclaringType.Methods.Add(def);
 
                     ic.MoveAfterLabels();
+                    var pos = ic.Index;
                     ic.EmitCall(def);
                     ic.Remove();
                     ic.Remove();
+                    Merges.Add(new(new(il.Method.Name, pos, pos + 2), 1));
                 }
                 else
                 {

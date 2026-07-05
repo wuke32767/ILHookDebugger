@@ -168,7 +168,7 @@ namespace Celeste.Mod.ILHookDebugger
             var decompiler = new CSharpDecompiler(new PEFile("NONAMELOL", output),
                 ILHookDebuggerModule.Settings.UseDecompileResolver ? new DecompilerResolver() : new NullResolver(),
                 new DecompilerSettings() { UseLambdaSyntax = true, });
-
+            
             var found = decompiler.TypeSystem.MainModule.TypeDefinitions.First(x => x.Name == name);
             return (decompiler.DecompileType(found.FullTypeName), decompiler);
         }

@@ -74,7 +74,7 @@ namespace Celeste.Mod.ILHookDebugger
                     ix.EmitLdelemRef();
                     ix.EmitLdtoken(del);
                     ix.EmitDelegate(Type.GetTypeFromHandle);
-                    ix.EmitCallvirt(typeof(DynamicMethod).GetMethod("CreateDelegate", [typeof(Type)]));
+                    ix.EmitCallvirt(typeof(DynamicMethod).GetMethod("CreateDelegate", [typeof(Type)])!);
                     //    slot[inslot].CreateDelegate(del);
                     ix.EmitStelemRef();
 
@@ -130,6 +130,10 @@ namespace Celeste.Mod.ILHookDebugger
         }
         internal override void AfterLoaded(Type r, IDEFeatures feat)
         {
+            if (feat.HasFlag(IDEFeatures.NotRun))
+            {
+                return;
+            }
             if (localslots.Any())
             {
                 var remoteslots = r.GetField(slots.Name)!;

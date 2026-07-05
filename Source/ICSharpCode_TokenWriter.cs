@@ -14,6 +14,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Celeste.Mod.ILHookDebugger
 {
@@ -44,7 +45,7 @@ namespace Celeste.Mod.ILHookDebugger
         public override void Write(string? value)
         {
             cache.Append(value);
-            if (cache[^1] == '\n')
+            if (cache.Length > 0 && cache[^1] == '\n')
             {
                 TextFlush();
             }
@@ -56,7 +57,7 @@ namespace Celeste.Mod.ILHookDebugger
                 if (cache[^1] == '\n')
                 {
                     cache.Remove(cache.Length - 1, 1);
-                    if (cache[^1] == '\r')
+                    if (cache.Length > 0 && cache[^1] == '\r')
                     {
                         cache.Remove(cache.Length - 1, 1);
                     }
@@ -522,7 +523,10 @@ namespace Celeste.Mod.ILHookDebugger
     {
         public override Encoding Encoding { get => Encoding.UTF8; }
         public List<List<Token<T>>> colors = [[]];
+        public List<SimpleRange?> ranges = [default];
+
         public required IEditorColor<T> Palette;
+        public ICodeRanger Range = NoCodeRange.Inst;
 
         public override void Write(char value)
         {
@@ -538,10 +542,15 @@ namespace Celeste.Mod.ILHookDebugger
             {
                 if (i != "\n")
                 {
+                    if (!string.IsNullOrWhiteSpace(i))
+                    {
+                        ranges[^1] ??= Range.Current;
+                    }
                     colors[^1].Add(new(i, Palette.Current));
                 }
                 else
                 {
+                    ranges.Add(default);
                     colors.Add([]);
                 }
             }
@@ -566,14 +575,182 @@ namespace Celeste.Mod.ILHookDebugger
             }
             value = value.Replace("\r", null);
             AddColor(value);
+            ranges.Add(default);
             colors.Add([]);
         }
     }
 
+    interface ICodeRanger
+    {
+        void Enter(AstNode at);
+        void Done(AstNode at);
+        void Report(SimpleRange fun);
+        void ReportUnknown();
+        SimpleRange? Current { get; }
+    }
+    class MyCodeRange : ICodeRanger
+    {
+        readonly Stack<(AstNode, SimpleRange)> annotationStack = new();
+
+        Dictionary<string, Dictionary<int, int>> u = [];
+        void Visit(Mono.Cecil.TypeDefinition type)
+        {
+            foreach (var i in type.Methods)
+            {
+                Fill(i);
+            }
+            foreach (var i in type.NestedTypes)
+            {
+                Visit(i);
+            }
+        }
+        void Fill(Mono.Cecil.MethodDefinition m)
+        {
+            var instrs = m.Body.Instructions;
+            var l = instrs.LastOrDefault();
+            var mp = l is { } ? (l.Offset + l.GetSize(), instrs.Count) : (0, 0);
+            u[m.GetMapKey()] = instrs.Select((x, i) => (x.Offset, i)).Append(mp).ToDictionary();
+        }
+
+        public MyCodeRange(Mono.Cecil.TypeDefinition instrs)
+        {
+            Visit(instrs);
+        }
+
+        public SimpleRange? Current { get; private set; }
+
+        public void Report(SimpleRange fun)
+        {
+            if (fun.func is { } name
+                && u.TryGetValue(name, out var us)
+                && us.TryGetValue(fun.from, out var f)
+                && us.TryGetValue(fun.to, out var t))
+            {
+                Current = new(name, f, t);
+            }
+            else
+            {
+                Current = null;
+            }
+        }
+
+        public void ReportUnknown()
+        {
+            Current = null;
+        }
+
+        public void Enter(AstNode node)
+        {
+            AstNode? nx = null;
+            if (node is VariableDeclarationStatement expr)
+            {
+                nx = expr.LastChild;
+            }
+            else if (node is BlockStatement block)
+            {
+                if (node.Parent is MethodDeclaration me)
+                {
+                    var mes = me.GetSymbol() as ICSharpCode.Decompiler.TypeSystem.IMethod;
+                    if (mes is { } && mes.DeclaringType is { } tp)
+                    {
+                        SimpleRange fun = new(tp.Name + "::" + mes.Name, 0, 0);
+                        Report(fun);
+                    }
+                }
+            }
+            else if (node is Statement state)
+            {
+                nx = node;
+            }
+            if (nx is { }
+                && nx.Annotation<ILInstruction>() is { } top
+                && top.Ancestors.OfType<ILFunction>().FirstOrDefault() is { } f
+            )
+            {
+                if (top is IfInstruction ifs)
+                {
+                    top = ifs.Condition;
+                }
+                string? name;
+                if (f.MoveNextMethod is { } mv)
+                {
+                    name = mv.DeclaringType.Name + "::" + mv.Name;
+                }
+                else if (f.Method is { } t)
+                {
+                    name = t.DeclaringType.Name + "::" + t.Name;
+                }
+                else
+                {
+                    name = null;
+                }
+                var c = top.Descendants.Where(z => !z.ILRangeIsEmpty).Reversed();
+                if (name is { } && c.Any())
+                {
+                    var first = c.First();
+                    var end = first;
+                    foreach (var i in c.Skip(1))
+                    {
+                        if (i.EndILOffset == first.StartILOffset)
+                        {
+                            first = i;
+                        }
+                    }
+                    SimpleRange fun = new(name, first.StartILOffset, end.EndILOffset);
+                    Report(fun);
+                    //annotationStack.Push((node, fun));
+                }
+
+            }
+        }
+
+        public void Done(AstNode at)
+        {
+            //if (annotationStack.TryPeek(out var il) && il.Item1 == node)
+            {
+                //annotationStack.Pop();
+                //}
+                //if (annotationStack.TryPeek(out il))
+                //{
+                //    range.Report(il.Item2);
+                //}
+                //else
+                //{
+                ReportUnknown();
+            }
+        }
+    }
+    class NoCodeRange : ICodeRanger
+    {
+        public SimpleRange? Current => default;
+
+        public void Report(SimpleRange fun)
+        {
+        }
+
+        public void ReportUnknown()
+        {
+        }
+
+        public void Enter(AstNode at)
+        {
+        }
+
+        public void Done(AstNode at)
+        {
+        }
+
+        public static NoCodeRange Inst = new();
+    }
+    public record struct SimpleRange(string? func, int from, int to);
     //copied from CSharpHighlightingTokenWriter
-    class MyTokenWriter(TextWriter writer, IDecompilerTypeSystem system, IPalette palette)
+    class MyTokenWriter(TextWriter writer, IDecompilerTypeSystem system, IPalette palette, ICodeRanger range)
         : DecoratingTokenWriter(new TextTokenWriter(new PlainTextOutput(writer) { IndentationString = "    " }, new(), system))
     {
+        public MyTokenWriter(TextWriter writer, IDecompilerTypeSystem system, IPalette palette)
+            : this(writer, system, palette, NoCodeRange.Inst)
+        {
+        }
         const int visibilityKeywordsColor = 0;
         const int namespaceKeywordsColor = 1;
         const int structureKeywordsColor = 2;
@@ -1029,19 +1206,17 @@ namespace Celeste.Mod.ILHookDebugger
 
         public override void StartNode(AstNode node)
         {
+            range.Enter(node);
             nodeStack.Push(node);
             base.StartNode(node);
         }
 
         public override void EndNode(AstNode node)
         {
+            range.Done(node);
             base.EndNode(node);
             nodeStack.Pop();
         }
-
-        readonly Stack<ConsoleColor> colorStack = new();
-        ConsoleColor currentColor = new();
-        int currentColorBegin = -1;
 
         private void BeginSpan(int ConsoleColor)
         {
@@ -1052,5 +1227,12 @@ namespace Celeste.Mod.ILHookDebugger
         {
             palette.Done();
         }
+    }
+}
+static partial class Helpery
+{
+    public static string GetMapKey(this Mono.Cecil.MethodDefinition m)
+    {
+        return m.DeclaringType?.Name + "::" + m.Name;
     }
 }

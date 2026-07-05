@@ -1,6 +1,7 @@
 ﻿using Celeste.Mod.Helpers.LegacyMonoMod;
 using Celeste.Mod.ILHookDebugger.MappingUtils;
 using ICSharpCode.Decompiler.IL;
+using Microsoft.Xna.Framework;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
@@ -15,6 +16,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -27,6 +29,79 @@ namespace Celeste.Mod.ILHookDebugger
         internal virtual void Run(ILContext il, IDEFeatures feat) { }
         internal virtual void AfterLoaded(Type r, IDEFeatures feat) { }
         internal virtual void Dispose(IDEFeatures feat) { }
+        internal virtual void Remap(List<SimpleRange?> tokens) { }
+    }
+    class Mergeform : Transform
+    {
+        internal record struct Merge(SimpleRange from, int len);
+        internal List<Merge> Merges = [];
+
+        internal override void Remap(List<SimpleRange?> tokens)
+        {
+            Dictionary<(string, int), (string, int)> mapperSt = [];
+            Dictionary<(string, int), (string, int)> mapperEd = [];
+            foreach (ref var _j in CollectionsMarshal.AsSpan(tokens))
+            {
+                if (_j is { } j)
+                {
+                    {
+                        var ins = (j.func!, j.from);
+                        var (m, a) = ins;
+                        if (mapperSt.TryGetValue(ins, out var o))
+                        {
+                            (m, a) = o;
+                            goto then;
+                        }
+                        foreach (var ix in Merges.Reversed())
+                        {
+                            var f = ix.from;
+                            if (f.func == m && f.from <= a && a < f.from + ix.len)
+                            {
+                                var of = a - f.from;
+                                a = f.from;
+                            }
+                            else if (f.from + ix.len <= a)
+                            {
+                                a -= ix.len;
+                                a += (f.to - f.from);
+                            }
+                        }
+                        mapperSt[ins] = (m, a);
+                    then:
+                        j = (new(m, a, j.to));
+                    }
+                    {
+                        var ins = (j.func!, j.to);
+                        var (m, a) = ins;
+                        if (mapperSt.TryGetValue(ins, out var o))
+                        {
+                            (m, a) = o;
+                            goto done;
+                        }
+                        foreach (var ix in Merges.Reversed())
+                        {
+                            var f = ix.from;
+                            if (f.func == m && f.from < a && a <= f.from + ix.len)
+                            {
+                                var of = a - f.from;
+                                a = f.to;
+                            }
+                            else if (f.from + ix.len < a)
+                            {
+                                a -= ix.len;
+                                a += (f.to - f.from);
+                            }
+                        }
+                        mapperSt[ins] = (m, a);
+                    done:
+                        j = new(m, j.from, a);
+                    }
+                    _j = j;
+                }
+                //var m
+
+            }
+        }
     }
     class SomehowRelinker : Transform
     {
@@ -120,12 +195,16 @@ namespace Celeste.Mod.ILHookDebugger
                     }
                     shouldBreak.Name = "ShouldNotBreak";
                 }
-                ic.EmitDelegate(Debugger.Break);
+                ic.EmitBreak();
                 ic.MarkLabel(breaking);
             }
         }
         internal override void AfterLoaded(Type r, IDEFeatures feat)
         {
+            if (feat.HasFlag(IDEFeatures.NotRun))
+            {
+                return;
+            }
             var boxed = feat.HasFlag(IDEFeatures.CanOnlyModifyRefValues);
             if (boxed)
             {
@@ -149,25 +228,35 @@ namespace Celeste.Mod.ILHookDebugger
             return ext;
         }
     }
-    class Backup : Transform
+    class Backup(MethodBase mi) : Transform
     {
         ILContext il = null!;
         Instruction[] backup = null!;
         Instruction?[] lackup = null!;
         internal Dictionary<Instruction, object> restore = [];
+        string name = null!;
+        VariableDefinition[] vars = null!;
         internal override void Run(ILContext _il, IDEFeatures feat)
         {
+            int unique = System.Threading.Interlocked.Increment(ref PrintingPod.unique);
             il = _il;
+            name = il.Method.Name;
+            var dmdtype = il.Method.DeclaringType;
+            dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType?.Name ?? "<Module>"}".Simplify(feat);
+            il.Method.Name = mi.Name;
 
             // do not change the value of any instrs, or the backup can be broken
             backup = il.Instrs.ToArray();
             // also backup the labels so that i can use moveafterlabels
             lackup = il.Labels.Select(x => x.Target).ToArray();
+            vars = il.Body.Variables.ToArray();
         }
         internal override void AfterLoaded(Type r, IDEFeatures feat)
         {
             il.Instrs.Clear();
-
+            il.Method.Name = name;
+            il.Body.Variables.Clear();
+            il.Body.Variables.AddRange(vars);
             foreach (var (o, b) in il.Labels.Zip(lackup))
             {
                 o.Target = b;
@@ -192,11 +281,10 @@ namespace Celeste.Mod.ILHookDebugger
             var _iact = mdm.ImportReference(iacttype).Resolve();
             var iact = mdm.ImportReference(_iact.GetConstructors().First());
 
-            md.Name = mi.Name;
+            //md.Name = mi.Name;
             dmdtype.BaseType = mdm.TypeSystem.Object;
             dmdtype.Namespace = mi.DeclaringType?.Namespace;
 
-            dmdtype.Name = $"{nameof(ILHookDebugger)}#Type#{unique}#{mi.DeclaringType?.Name ?? "<Module>"}".Simplify(feat);
             mdm.Name = $"{nameof(ILHookDebugger)}#Module#{unique}".Simplify(feat);
             asm.Name.Name = $"{nameof(ILHookDebugger)}#Asm#{unique}".Simplify(feat);
 
@@ -259,6 +347,9 @@ namespace Celeste.Mod.ILHookDebugger
         public Stream? Asm;
         public string? TypeName;
         public TransformingResult? Transforming;
+        public DataScope<DynamicReferenceCell> dataScope;
+        public Mirror? nirror;
+
         public void Dispose()
         {
             Detour?.Dispose();
@@ -266,6 +357,9 @@ namespace Celeste.Mod.ILHookDebugger
             Asm?.Dispose();
             Helper?.Dispose();
             Transforming?.Dispose();
+            dataScope.Dispose();
+            dataScope = default;
+            nirror?.Dispose();
         }
     }
     internal static class PrintingPod
@@ -342,7 +436,7 @@ namespace Celeste.Mod.ILHookDebugger
                         string? i = failed[i1];
                         if (i is { })
                         {
-                            File.Delete(toRelease);
+                            File.Delete(i);
                         }
                         failed[i1] = null;
                     }
@@ -405,12 +499,34 @@ namespace Celeste.Mod.ILHookDebugger
                     .Reversed()
                     .FirstOrDefault(x => asm.FullName == x.FullName);
                 return f;
-
             };
             Duplicant duplicant = null!;
             var hook = new ILHook(mi, il =>
             {
                 ILCursor ic = new(il);
+                if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.UseCeleste))
+                {
+                    var m = Mirror.GetOrUpdate(il, mi, ILHookDebuggerModule.CurrentFeature);
+
+                    duplicant.TypeName = mi.GetMethodNameForDB();
+                    duplicant.nirror = m;
+                    duplicant.dataScope.Dispose();
+                    duplicant.dataScope = ic.EmitNewTypedReference(m, out _);
+                    var label = il.DefineLabel();
+                    ic.EmitLdfld(Mirror.ReflShouldBreak);
+                    ic.EmitBrfalse(label);
+                    for (int i = 0; i < il.Method.Parameters.Count; i++)
+                    {
+                        ic.EmitLdarg(i);
+                    }
+                    ic.EmitCall(m.Entry);
+                    ic.EmitRet();
+                    ic.EmitNop();
+                    ic.MarkLabel(label);
+
+                    return;
+                }
+                // else
                 var md = il.Method;
                 var op = Operate(mi, il);
                 var output = op.output;
@@ -459,7 +575,7 @@ namespace Celeste.Mod.ILHookDebugger
         {
             ILCursor ic = new(il);
 
-            var b = new Backup();
+            var b = new Backup(mi);
             var tacache = new TypeAttr();
             List<Transform> tr = [
                 b,
@@ -511,24 +627,25 @@ namespace Celeste.Mod.ILHookDebugger
 
         internal static void Refresh()
         {
-            foreach (var item in AllDuplicants.Select(x => x.Detour))
+            SrcGenHelper.Refresh();
+            var o = Clear();
+            foreach (var i in o)
             {
-                item.Undo();
-                item.Apply();
+                Create(i.Target);
             }
         }
 
-        internal static void Refresh(Duplicant at)
+        internal static void FastTrack(Duplicant at)
         {
             var item = at.Detour;
             item.Undo();
             item.Apply();
         }
-        internal static void Refresh(MethodBase at)
+        internal static void FastTrack(MethodBase at)
         {
             if (DuplicantLookup.TryGetValue(at, out var i))
             {
-                Refresh(i);
+                FastTrack(i);
             }
         }
 
@@ -581,11 +698,12 @@ namespace Celeste.Mod.ILHookDebugger
         }
     }
 
-    internal partial class MakeIEnumerator : Transform
+    internal partial class MakeIEnumerator : Mergeform
     {
         [GeneratedRegex(@"\A<(?<name1>[^>]*)>[0-9]+__(?<name2>.*)\z", RegexOptions.ExplicitCapture)]
         public static partial Regex MatchParamName();
 
+        string? orig;
         internal override void Run(ILContext il, IDEFeatures feat)
         {
             if (!ILHookDebuggerModule.Settings.IEnumeratorPatch)
@@ -756,7 +874,7 @@ namespace Celeste.Mod.ILHookDebugger
                 p.Emit(OpCodes.Ret);
             }
             {
-                md.Name = "<>" + md.Name;
+                //md.Name = "<>" + md.Name;
                 md.Body.Instructions.Clear();
                 md.Body.ExceptionHandlers.Clear();
                 var ic = new ILCursor(il);
@@ -805,6 +923,8 @@ namespace Celeste.Mod.ILHookDebugger
                             }
                             else
                             {
+                                int index = ic.Index;
+                                Merges.Add(new(new("<RemoveNext>d__114514::MoveNext", index, index), 1));
                                 ic.EmitLdfld(raw);
                             }
                         }
@@ -812,6 +932,8 @@ namespace Celeste.Mod.ILHookDebugger
                     ic.Index = 0;
                     while (ic.TryGotoNext(MoveType.AfterLabel, i => i.MatchLdarga(0)))
                     {
+                        int index = ic.Index;
+                        Merges.Add(new(new("<RemoveNext>d__114514::MoveNext", index, index + 1), 2));
                         ic.EmitLdarg(0);
                         ic.EmitLdflda(raw);
                         ic.Remove();
@@ -825,6 +947,8 @@ namespace Celeste.Mod.ILHookDebugger
                             devil = new(m.TypeSystem.Object);
                             newm.Body.Variables.Add(devil);
                         }
+                        int index = ic.Index;
+                        Merges.Add(new(new("<RemoveNext>d__114514::MoveNext", index, index + 1), 4));
                         ic.EmitStloc(devil);
                         ic.EmitLdarg(0);
                         ic.EmitLdloc(devil);
@@ -846,9 +970,13 @@ namespace Celeste.Mod.ILHookDebugger
                         i => i.MatchRet()
                         ))
                     {
+                        int index = ic.Index;
+                        Merges.Add(new(new("<RemoveNext>d__114514::MoveNext", index, index), 2));
                         ic.EmitStloc(devil2);
                         ic.EmitLdloc(devil2);
                         ic.Index += 5;
+                        index += 7;
+                        Merges.Add(new(new("<RemoveNext>d__114514::MoveNext", index, index), 6));
                         ic.EmitLdarg0();
                         ic.EmitLdloc(devil2);
                         ic.EmitStfld(pcur);
@@ -858,6 +986,7 @@ namespace Celeste.Mod.ILHookDebugger
                     }
                 });
             }
+            orig = md.GetMapKey();
             FieldReference? Resolve(Func<Instruction, FieldReference?> find, MethodBase? method)
             {
                 if (method is null)
@@ -866,6 +995,27 @@ namespace Celeste.Mod.ILHookDebugger
                 }
                 using var origctor = new DynamicMethodDefinition(method);
                 return origctor.Definition.Body.Instructions.Select(find).Where(x => x?.DeclaringType.Is(atf) ?? false).SingleOrDefault()!;
+            }
+        }
+        internal override void Remap(List<SimpleRange?> tokens)
+        {
+            if (orig is { })
+            {
+                base.Remap(tokens);
+                foreach (ref var _j in CollectionsMarshal.AsSpan(tokens))
+                {
+                    if (_j is { } j)
+                    {
+                        if (j.func is "<RemoveNext>d__114514::MoveNext")
+                        {
+                            _j = new(orig, j.from, j.to);
+                        }
+                        else if (j.func == orig)
+                        {
+                            _j = null;
+                        }
+                    }
+                }
             }
         }
     }

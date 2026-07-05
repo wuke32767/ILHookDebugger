@@ -97,18 +97,18 @@ namespace Celeste.Mod.ILHookDebugger
                     var dif = new Diff(il);
                     foreach (var hook in ils.Where(x => !x.disabled).Select(x => x.raw))
                     {
-                        var manip = DynamicData.For(DynamicData.For(hook).Get("hook")!).Get<ILContext.Manipulator>("Manip")!;
+                        var manip = hook.hook.Manip.CastDelegate<Action<ILContext>>(); // so that they aalways different
                         if (manip.Method.DeclaringType?.Assembly != typeof(Decompilation).Assembly)
                         {
                             manip(il);
                             ControlPanel.Cecils(il);
-                            dif.Update(il, manip.Method);
+                            dif.Update(il, manip);
                         }
                     }
                     if (dif.exception is { } ex2)
                     {
                         ourmessage.Add("failed to diff method. this *may* indicates that one of our ilhooks is too fancy.");
-                        ourmessage.Add(dif.when.GetMethodNameForDB());
+                        ourmessage.Add(dif.when.Method.GetMethodNameForDB());
                         ourmessage.Add(ex2.ToString());
                     }
                     else

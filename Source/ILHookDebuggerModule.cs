@@ -31,7 +31,7 @@ namespace Celeste.Mod.ILHookDebugger;
 
 public enum Compatibility
 {
-    None = 0, VisualStudio, Rider, dnSpy,
+    None = 0, VisualStudio, Rider, dnSpy, Celeste,
 };
 [Flags]
 public enum IDEFeatures
@@ -46,6 +46,7 @@ public enum IDEFeatures
     CanNotInlineDelegate = 1 << 6,
     NotRun = 1 << 7,
     DamnTypeResolveCache = 1 << 8,
+    UseCeleste = 1 << 9,
 }
 
 public class ILHookDebuggerModule : EverestModule
@@ -269,6 +270,17 @@ public class ILHookDebuggerModule : EverestModule
 
         return (false, "");
     }
+
+    internal static Lazy<(bool, string)> CheckRunner = new(() =>
+    {
+        return TestWith(() => typeof(WritingMango.ILRunner.RunnerFactory), "ILHookDebuggerExtension_ILRunner");
+    });
+
+    internal static Lazy<(bool, string)> CheckScript = new(() =>
+    {
+        return TestWith(() => typeof(Microsoft.CodeAnalysis.CSharp.CSharpCompilation), "ILHookDebuggerExtension_CSScript");
+    });
+
     internal static Lazy<(bool, string)> CheckEditor = new(() =>
     {
         return TestWith(() => typeof(TextEditor), "ILHookDebuggerExtension_TextEditor");
@@ -279,17 +291,18 @@ public class ILHookDebuggerModule : EverestModule
         CtrlC();
         DetourManager.ILHookApplied -= OnHookApply;
 
-        Engine.Scene.OnEndOfFrame += () =>
+        MainThreadHelper.Schedule(() =>
         {
             ImGuiManager.Handlers.Remove(MiGui.Instance);
             MiGui.Instance.Display = false;
-        };
+        }).AsTask();
         PrintingPod.Clear();
         IgnoreDebugger();
         AppDomain.CurrentDomain.ProcessExit -= CurrentDomain_ProcessExit;
         GC.Collect();
         PrintingPod.Guardian.Clear();
         Unfix();
+        Mirror.Unload();
         // TODO: unapply any hooks applied in Load()
     }
 
@@ -304,7 +317,7 @@ public class ILHookDebuggerModule : EverestModule
             {
                 Engine.Scene.OnEndOfFrame += () =>
                 {
-                    PrintingPod.Refresh(info.Method.Method);
+                    PrintingPod.FastTrack(info.Method.Method);
                 };
             }
         }
@@ -336,9 +349,13 @@ public class ILHookDebuggerModule : EverestModule
                 IDEFeatures.CanDebuggerLaunchButNotDefault,
             Compatibility.dnSpy =>
                 IDEFeatures.CanNotModifyValues,
+            Compatibility.Celeste =>
+                IDEFeatures.UseCeleste |
+                ILSpyFeature,
             _ =>
                 IDEFeatures.None,
         };
+        PrepareLoop.Value = o is Compatibility.Celeste;
         PrintingPod.Refresh();
     });
     internal static IDEFeatures ILSpyFeature =>
@@ -360,6 +377,7 @@ public class ILHookDebuggerModule : EverestModule
     public static Swapping IEnumeratorPatch = new(i => i, i => PrintingPod.Refresh());
     public static Swapping TextConvertor = new(i => i, i => PrintingPod.Refresh());
     public static Swapping PrettifyMonoMod = new(i => i, i => PrintingPod.Refresh());
+    public static Swapping PrepareLoop = new(Mirror.Load, Mirror.Unload);
 
     private static void Engine_Update(On.Monocle.Engine.orig_Update orig, Monocle.Engine self, Microsoft.Xna.Framework.GameTime gameTime)
     {

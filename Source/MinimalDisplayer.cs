@@ -37,6 +37,7 @@ namespace Celeste.Mod.ILHookDebugger
         }
         public abstract void Render();
         public abstract string Title { get; }
+        public virtual ImGuiWindowFlags flags => ImGuiWindowFlags.HorizontalScrollbar | ImGuiWindowFlags.NoSavedSettings;
     }
 
     public class EditorDisplayer(TextEditor editor, string title) : IExtraWindow
@@ -48,27 +49,28 @@ namespace Celeste.Mod.ILHookDebugger
         public override string Title { get => title; }
     }
 
-    internal sealed class MinimalDisplayer(IReadOnlyList<string> strings, IReadOnlyList<IReadOnlyList<Color>> colors, string title) : IExtraWindow
+    internal sealed class MinimalDisplayer(IReadOnlyList<IReadOnlyList<Token<Color>>> colors, string title) : IExtraWindow
     {
         public override string Title { get => title; }
 
         public override void Render()
         {
-            if (ImGui.Button("Copy All"))
+            if (ImGui.Button("Copy Code"))
             {
-                ImGui.SetClipboardText(string.Join('\n', strings));
+                ImGui.SetClipboardText(string.Join('\n', colors.Select(x => string.Concat(x.Select(y => y.token)))));
             }
             if (ImGui.BeginChild(""))
             {
                 ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(0, ImGui.GetStyle().ItemSpacing.Y));
-                for (int i = 0; i < strings.Count; i++)
+                for (int i = 0; i < colors.Count; i++)
                 {
-                    var s = strings[i];
+                    var s = colors[i];
                     var c = i >= colors.Count ? [] : colors[i];
-                    for (int j = 0; j < strings[i].Length; j++)
+                    for (int j = 0; j < s.Count; j++)
                     {
-                        var cc = c[j].ToVector4();
-                        ImGui.TextColored(new(cc.X, cc.Y, cc.Z, cc.W), s.AsSpan(j, 1));
+                        var word = s[j];
+                        var cc = word.color.ToVector4();
+                        Helpery.TextGoodColored(cc, word.token);
                         ImGui.SameLine();
                     }
                     ImGui.Text("");

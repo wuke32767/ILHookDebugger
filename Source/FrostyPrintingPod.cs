@@ -105,12 +105,11 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             else
             {
                 EditorColor color = new();
-                using EditorTextWriter<Color> o = new() { Palette = color, };
+                using TokenBasedTextWriter<Color> o = new() { Palette = color, };
                 var w = new MyTokenWriter(o, decomp.TypeSystem, color);
                 content.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
-                var str = o.str.ToString();
 
-                return new MinimalDisplayer(str.Split('\n'), o.colors, v);
+                return new MinimalDisplayer(o.colors, v);
             }
         }
 
@@ -124,7 +123,7 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                 var content = decompiled[index];
                 bool open = true;
                 ImGui.SetNextWindowSize(new(150 * 2.5f, ImGui.GetMainViewport().Size.Y / 4), ImGuiCond.FirstUseEver);
-                if (ImGui.Begin(content.Title, ref open, ImGuiWindowFlags.HorizontalScrollbar | ImGuiWindowFlags.NoSavedSettings))
+                if (ImGui.Begin(content.Title, ref open, content.flags))
                 {
                     content.ProtectedRender();
                     ImGui.End();
@@ -358,9 +357,20 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     {
                         ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(41 / 255f, 74 / 255f, 122 / 255f, 1));
                     }
+
+                    bool disabled = i == (int)Compatibility.Celeste && !ILHookDebuggerModule.CheckRunner.Value.Item1;
+                    if (disabled)
+                    {
+                        ImGui.BeginDisabled();
+                    }
                     if (ImGui.Button(enums[i]))
                     {
                         ILHookDebuggerModule.IDE.Value = (Compatibility)i;
+                    }
+                    if (disabled)
+                    {
+                        ImGui.EndDisabled();
+                        ImGui.SetItemTooltip("should install extension.");
                     }
                     ImGui.PopStyleColor();
                     ImGui.SameLine();
@@ -543,40 +553,50 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                                 toremove.Add(f);
                             }
                             ImGui.SameLine();
-                            ImGui.BeginDisabled(!hasdecom);
-                            if (ImGui.Button(Look(f) ? "Done" : ("Decompile##" + f.TypeName)))
+                            if (ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.UseCeleste))
                             {
-                                if (ILHookDebuggerModule.Settings.OpenInEditor)
+                                if (ImGui.Button("Open Panel##" + f.TypeName))
                                 {
-                                    Extract(f, fromd);
-                                    void Extract(Duplicant target, string from)
-                                    {
-                                        Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
-                                        var (ast, decomp) = Decompilation.FromRunning(target);
-                                        decompiled.Add(CreateEditor(ast, decomp, GetNextWindowName(target.TypeName!)));
-                                    }
+                                    Mirror.DebuggingMethodsController[f.Target].EnsureAdded();
                                 }
-                                else
-                                {
-                                    Extract(f, fromd);
-                                    static void Extract(Duplicant target, string from)
-                                    {
-                                        Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
-                                        var (ast, decomp) = Decompilation.FromRunning(target);
-                                        var w = new MyTokenWriter(Console.Out, decomp.TypeSystem, ILHookDebuggerModule.PaletteForConsole());
-                                        ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
-                                    }
-                                }
-                                See(f);
-                            }
-                            ImGui.EndDisabled();
-                            if (hasdecom)
-                            {
-                                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Decompiler", lang) + "\n" + Dialog.Clean("ILHookDebugger_Help_Decompiler_True", lang) + fromd);
                             }
                             else
                             {
-                                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Decompiler", lang));
+                                ImGui.BeginDisabled(!hasdecom);
+                                if (ImGui.Button(Look(f) ? "Done" : ("Decompile##" + f.TypeName)))
+                                {
+                                    if (ILHookDebuggerModule.Settings.OpenInEditor)
+                                    {
+                                        Extract(f, fromd);
+                                        void Extract(Duplicant target, string from)
+                                        {
+                                            Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
+                                            var (ast, decomp) = Decompilation.FromRunning(target);
+                                            decompiled.Add(CreateEditor(ast, decomp, GetNextWindowName(target.TypeName!)));
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Extract(f, fromd);
+                                        static void Extract(Duplicant target, string from)
+                                        {
+                                            Logger.Log(nameof(ILHookDebugger), $"Decompiling with a decompiler from {from}...");
+                                            var (ast, decomp) = Decompilation.FromRunning(target);
+                                            var w = new MyTokenWriter(Console.Out, decomp.TypeSystem, ILHookDebuggerModule.PaletteForConsole());
+                                            ast.AcceptVisitor(new CSharpOutputVisitor(w, FormattingOptionsFactory.CreateAllman()));
+                                        }
+                                    }
+                                    See(f);
+                                }
+                                ImGui.EndDisabled();
+                                if (hasdecom)
+                                {
+                                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Decompiler", lang) + "\n" + Dialog.Clean("ILHookDebugger_Help_Decompiler_True", lang) + fromd);
+                                }
+                                else
+                                {
+                                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_Decompiler", lang));
+                                }
                             }
                         }
                     }
@@ -587,37 +607,40 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
                     PrintingPod.Remove(f);
                 }
 
-                ImGui.Text("");
-                ImGui.Separator();
+                if (!ILHookDebuggerModule.CurrentFeature.HasFlag(IDEFeatures.UseCeleste))
+                {
+                    ImGui.Text("");
+                    ImGui.Separator();
 
-                if (ImGui.Button(Look(dumpobj) ? "Done" : "Dump"))
-                {
-                    var count = dumpPath.TakeWhile(x => x != 0).Count();
-                    PrintingPod.Dump(System.Text.Encoding.UTF8.GetString(dumpPath, 0, count), overwrite);
-                    See(dumpobj);
-                }
-                ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_WhatIsDump", lang));
-                ImGui.SameLine();
-                ImGui.Checkbox("overwrite", ref overwrite);
-                ImGui.SameLine();
-                unsafe
-                {
-                    GCHandle? handle = null;
-                    ImGui.InputText("Path", dumpPath, (uint)dumpPath.Length, ImGuiInputTextFlags.CallbackResize, data =>
+                    if (ImGui.Button(Look(dumpobj) ? "Done" : "Dump"))
                     {
-                        if (data->EventFlag == ImGuiInputTextFlags.CallbackResize)
+                        var count = dumpPath.TakeWhile(x => x != 0).Count();
+                        PrintingPod.Dump(System.Text.Encoding.UTF8.GetString(dumpPath, 0, count), overwrite);
+                        See(dumpobj);
+                    }
+                    ImGui.SetItemTooltip(Dialog.Clean("ILHookDebugger_Help_WhatIsDump", lang));
+                    ImGui.SameLine();
+                    ImGui.Checkbox("overwrite", ref overwrite);
+                    ImGui.SameLine();
+                    unsafe
+                    {
+                        GCHandle? handle = null;
+                        ImGui.InputText("Path", dumpPath, (uint)dumpPath.Length, ImGuiInputTextFlags.CallbackResize, data =>
                         {
-                            Array.Resize(ref dumpPath, dumpPath.Length * 2);
-                            handle = GCHandle.Alloc(dumpPath, GCHandleType.Pinned);
-                            fixed (byte* c = dumpPath)
+                            if (data->EventFlag == ImGuiInputTextFlags.CallbackResize)
                             {
-                                data->Buf = c;
+                                Array.Resize(ref dumpPath, dumpPath.Length * 2);
+                                handle = GCHandle.Alloc(dumpPath, GCHandleType.Pinned);
+                                fixed (byte* c = dumpPath)
+                                {
+                                    data->Buf = c;
+                                }
+                                data->BufSize = dumpPath.Length;
                             }
-                            data->BufSize = dumpPath.Length;
-                        }
-                        return 0;
-                    });
-                    handle?.Free();
+                            return 0;
+                        });
+                        handle?.Free();
+                    }
                 }
             }
             catch (Exception ex)
@@ -661,8 +684,22 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
             }
         }
     }
-    static class Helpery
+}
+
+namespace Celeste.Mod.ILHookDebugger
+{
+    static partial class Helpery
     {
+        public static void TextGoodColored(Vector4 color, string str)
+        {
+            TextSafeColored(new System.Numerics.Vector4(color.X, color.Y, color.Z, color.W), str);
+        }
+        public static void TextSafeColored(System.Numerics.Vector4 color, string str)
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, color);
+            ImGui.TextUnformatted(str);
+            ImGui.PopStyleColor();
+        }
         public static string GetMethodNameForDB(this MethodBase method)
         {
             ParameterInfo[]? param = null;
@@ -693,6 +730,3 @@ namespace Celeste.Mod.ILHookDebugger.MappingUtils
         });
     }
 }
-
-
-

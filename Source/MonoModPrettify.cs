@@ -99,7 +99,7 @@ namespace Celeste.Mod.ILHookDebugger
             return false;
         }
     }
-    internal partial class MonoModPrettify : Transform
+    internal partial class MonoModPrettify : Mergeform
     {
         static MethodInfo GetValueTUnsafeT =
     typeof(DynamicReferenceManager).GetMethod("GetValueTUnsafe", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)!;
@@ -219,6 +219,7 @@ namespace Celeste.Mod.ILHookDebugger
                 {
                     toremove += 0;
                 }
+                var pos = bg.Index;
                 bg.EmitCall(md);
                 bg.MoveAfterLabels();
                 if (bg.IncomingLabels.Any())
@@ -227,6 +228,7 @@ namespace Celeste.Mod.ILHookDebugger
                 }
                 bg.RemoveRange(toremove);
                 ic = bg;
+                Merges.Add(new(new(il.Method.Name, pos, pos + toremove), 1));
             }
 
         }

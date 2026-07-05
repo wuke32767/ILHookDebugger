@@ -58,7 +58,7 @@ namespace Celeste.Mod.ILHookDebugger
             il.Emit(OPC.Ldfld, field);
             if (field.FieldType.IsValueType && !typeof(T).IsValueType)
             {
-                il.Emit(OPC.Box);
+                il.Emit(OPC.Box, field.FieldType);
             }
             il.Emit(OPC.Ret);
 
@@ -280,7 +280,7 @@ namespace Celeste.Mod.ILHookDebugger
             Cecils(il);
             var dif = new Diff(il);
             var hooks = hooked
-                .Select(hook => hook.hook.Manip)
+                .Select(hook => hook.hook.Manip.CastDelegate<Action<ILContext>>())
                 .Where(x => !filter.Contains(x.Method)).ToArray();
             foreach (var hook in hooks)
             {
@@ -288,13 +288,13 @@ namespace Celeste.Mod.ILHookDebugger
                 {
                     hook(il);
                     Cecils(il);
-                    dif.Update(il, hook.Method);
+                    dif.Update(il, hook);
                 }
             }
             if (dif.exception is { } _ex)
             {
                 ex = _ex;
-                by = dif.when.GetMethodNameForDB();
+                by = dif.when.Method.GetMethodNameForDB();
                 success = false;
             }
             else
@@ -304,7 +304,7 @@ namespace Celeste.Mod.ILHookDebugger
                 Current = dif.instructions;
                 CurrentColor = [];
                 CurrentColor.EnsureCapacity(Current.Count);
-                var color = hooks.Zip(Alloc(hooks.Length)).ToDictionary(x => (MethodBase)x.First.Method, x => (color: x.Second, name: x.First.Method.GetMethodNameForDB()));
+                var color = hooks.Zip(Alloc(hooks.Length)).ToDictionary(x => x.First, x => (color: x.Second, name: x.First.Method.GetMethodNameForDB()));
                 foreach (var i in Current)
                 {
                     var ka = i.Anon.by is { } a && color.TryGetValue(a, out var k) ? k : default;
@@ -564,11 +564,11 @@ namespace Celeste.Mod.ILHookDebugger
                             if (i.Anon.by is { } a)
                             {
                                 ImGui.TextColored(ca, na);
-                                MakeDecompile(a, lang, na);
+                                MakeDecompile(a.Method, lang, na);
                                 if (i.Anon.And is { } b)
                                 {
                                     ImGui.TextColored(cb, nb);
-                                    MakeDecompile(b, lang, nb);
+                                    MakeDecompile(b.Method, lang, nb);
                                 }
                             }
                             if (r is { })
